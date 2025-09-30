@@ -20,7 +20,12 @@ import {
   Timer,
   BarChart3,
   Settings,
-  Scale
+  Scale,
+  Brain,
+  MessageSquare,
+  Lightbulb,
+  TrendingUp,
+  BookOpen
 } from 'lucide-react'
 import './App.css'
 
@@ -33,7 +38,8 @@ function App() {
     description: '',
     hours: 0,
     minutes: 0,
-    rate: 350
+    rate: 350,
+    isBillable: true
   })
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
@@ -91,7 +97,7 @@ function App() {
   const addTimeEntry = () => {
     if (currentEntry.client && currentEntry.matter && (currentEntry.hours > 0 || currentEntry.minutes > 0)) {
       const totalHours = currentEntry.hours + (currentEntry.minutes / 60)
-      const billableAmount = totalHours * currentEntry.rate
+      const billableAmount = currentEntry.isBillable ? totalHours * currentEntry.rate : 0
       
       const newEntry = {
         id: Date.now(),
@@ -109,20 +115,35 @@ function App() {
         description: '',
         hours: 0,
         minutes: 0,
-        rate: 350
+        rate: 350,
+        isBillable: true
       })
     }
   }
 
-  const totalBillableHours = timeEntries.reduce((sum, entry) => sum + entry.totalHours, 0)
+  const totalBillableHours = timeEntries.filter(e => e.isBillable).reduce((sum, entry) => sum + entry.totalHours, 0)
+  const totalNonBillableHours = timeEntries.filter(e => !e.isBillable).reduce((sum, entry) => sum + entry.totalHours, 0)
   const totalBillableAmount = timeEntries.reduce((sum, entry) => sum + entry.billableAmount, 0)
 
   // AI Assistant functions
-  const handleTaskSuggestion = (suggestedTask) => {
-    setCurrentEntry(prev => ({
-      ...prev,
-      description: suggestedTask
-    }))
+  const handleTaskSuggestion = (suggestedTask, fullEntry = null) => {
+    if (fullEntry) {
+      // Natural language entry with full details
+      setCurrentEntry(prev => ({
+        ...prev,
+        client: fullEntry.client || prev.client,
+        matter: fullEntry.matter || prev.matter,
+        description: fullEntry.description || suggestedTask,
+        hours: fullEntry.hours || prev.hours,
+        minutes: fullEntry.minutes || prev.minutes
+      }))
+    } else {
+      // Just a task suggestion
+      setCurrentEntry(prev => ({
+        ...prev,
+        description: suggestedTask
+      }))
+    }
     setShowAIAssistant(false)
   }
 
@@ -132,26 +153,26 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-slate-200">
+      <header className="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
-              <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
-                <Scale className="w-6 h-6 text-white" />
+              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-500 rounded-lg shadow-lg">
+                <Scale className="w-7 h-7 text-blue-900" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900">Tim Harmar Legal</h1>
-                <p className="text-sm text-slate-600">Practice Management System</p>
+                <h1 className="text-xl font-bold text-white">Tim Harmar Legal</h1>
+                <p className="text-sm text-blue-100">AI-Powered Practice Management</p>
               </div>
             </div>
-            <nav className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm">
+            <nav className="flex items-center space-x-2">
+              <Button variant="ghost" size="sm" className="text-white hover:bg-blue-700">
                 <BarChart3 className="w-4 h-4 mr-2" />
                 Reports
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-white hover:bg-blue-700">
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </Button>
@@ -167,33 +188,38 @@ function App() {
           <div className="lg:col-span-2 space-y-6">
             
             {/* Active Timer Card */}
-            <Card className="border-2 border-blue-200 bg-blue-50/50">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+            <Card className="border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-white shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-blue-100 to-blue-50 border-b border-blue-200">
+                <CardTitle className="flex items-center space-x-2 text-blue-900">
                   <Timer className="w-5 h-5 text-blue-600" />
                   <span>Active Timer</span>
+                  {isTimerRunning && (
+                    <Badge className="ml-2 bg-green-500 animate-pulse">Running</Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>Track time in real-time for your current task</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 py-6">
                 <div className="text-center">
-                  <div className="text-4xl font-mono font-bold text-blue-600 mb-4">
+                  <div className={`text-6xl font-mono font-bold mb-6 ${
+                    isTimerRunning ? 'text-blue-600' : 'text-slate-400'
+                  }`}>
                     {formatTime(elapsedTime)}
                   </div>
-                  <div className="flex justify-center space-x-2">
+                  <div className="flex justify-center space-x-3">
                     {!isTimerRunning ? (
-                      <Button onClick={startTimer} className="bg-green-600 hover:bg-green-700">
-                        <Play className="w-4 h-4 mr-2" />
-                        Start
+                      <Button onClick={startTimer} className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg">
+                        <Play className="w-5 h-5 mr-2" />
+                        Start Timer
                       </Button>
                     ) : (
-                      <Button onClick={pauseTimer} variant="outline">
-                        <Pause className="w-4 h-4 mr-2" />
+                      <Button onClick={pauseTimer} variant="outline" className="px-6 py-6 text-lg border-2">
+                        <Pause className="w-5 h-5 mr-2" />
                         Pause
                       </Button>
                     )}
-                    <Button onClick={stopTimer} variant="destructive">
-                      <Square className="w-4 h-4 mr-2" />
+                    <Button onClick={stopTimer} variant="destructive" className="px-6 py-6 text-lg" disabled={elapsedTime === 0}>
+                      <Square className="w-5 h-5 mr-2" />
                       Stop
                     </Button>
                   </div>
@@ -276,6 +302,22 @@ function App() {
                   </div>
                 </div>
 
+                <div className="flex items-center space-x-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <input
+                    type="checkbox"
+                    id="billable"
+                    checked={currentEntry.isBillable}
+                    onChange={(e) => setCurrentEntry(prev => ({ ...prev, isBillable: e.target.checked }))}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <Label htmlFor="billable" className="cursor-pointer flex items-center space-x-2">
+                    <DollarSign className="w-4 h-4 text-green-600" />
+                    <span className="font-medium text-slate-700">
+                      {currentEntry.isBillable ? 'Billable Time' : 'Non-Billable Time'}
+                    </span>
+                  </Label>
+                </div>
+
                 <Button onClick={addTimeEntry} className="w-full bg-blue-600 hover:bg-blue-700">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Time Entry
@@ -301,30 +343,48 @@ function App() {
                 ) : (
                   <div className="space-y-3">
                     {timeEntries.slice(0, 5).map((entry) => (
-                      <div key={entry.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div key={entry.id} className={`flex items-center justify-between p-3 rounded-lg border-l-4 ${
+                        entry.isBillable 
+                          ? 'bg-green-50 border-l-green-500' 
+                          : 'bg-slate-50 border-l-slate-400'
+                      }`}>
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-1">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${
+                                entry.isBillable 
+                                  ? 'bg-green-100 text-green-800 border-green-300' 
+                                  : 'bg-slate-100 text-slate-700 border-slate-300'
+                              }`}
+                            >
                               {entry.client}
                             </Badge>
                             <span className="text-sm font-medium text-slate-600">
                               {entry.matter}
                             </span>
+                            {entry.isBillable ? (
+                              <Badge className="bg-green-600 text-white text-xs">Billable</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">Non-Billable</Badge>
+                            )}
                           </div>
-                          <p className="text-sm text-slate-500 truncate">
+                          <p className="text-sm text-slate-700 truncate font-medium">
                             {entry.description}
                           </p>
                           <p className="text-xs text-slate-400">
                             {entry.date} at {entry.time}
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right ml-4">
                           <div className="font-semibold text-slate-900">
                             {entry.totalHours.toFixed(2)}h
                           </div>
-                          <div className="text-sm text-green-600 font-medium">
-                            ${entry.billableAmount.toFixed(2)}
-                          </div>
+                          {entry.isBillable && (
+                            <div className="text-sm text-green-600 font-medium">
+                              ${entry.billableAmount.toFixed(2)}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -346,16 +406,23 @@ function App() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">Total Hours</span>
-                  <span className="font-semibold">{totalBillableHours.toFixed(2)}h</span>
+                <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
+                  <span className="text-sm text-green-700 font-medium flex items-center">
+                    <DollarSign className="w-4 h-4 mr-1" />
+                    Billable Hours
+                  </span>
+                  <span className="font-bold text-green-900">{totalBillableHours.toFixed(2)}h</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-sm text-slate-600 font-medium">Non-Billable Hours</span>
+                  <span className="font-semibold text-slate-900">{totalNonBillableHours.toFixed(2)}h</span>
+                </div>
+                <div className="flex justify-between items-center pt-3 border-t border-slate-200">
+                  <span className="text-sm text-slate-600">Total Revenue</span>
+                  <span className="font-bold text-green-600 text-lg">${totalBillableAmount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">Billable Amount</span>
-                  <span className="font-semibold text-green-600">${totalBillableAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600">Entries</span>
+                  <span className="text-sm text-slate-600">Total Entries</span>
                   <span className="font-semibold">{timeEntries.length}</span>
                 </div>
               </CardContent>
@@ -396,34 +463,49 @@ function App() {
 
             {/* AI Assistant Preview */}
             <Card 
-              className="border-2 border-purple-200 bg-purple-50/50 cursor-pointer hover:bg-purple-100/50 transition-colors"
+              className="border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-white cursor-pointer hover:shadow-lg transition-all shadow-md"
               onClick={() => setShowAIAssistant(true)}
             >
-              <CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-100 to-blue-50 border-b border-blue-200">
                 <CardTitle className="flex items-center space-x-2">
-                  <div className="w-5 h-5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
-                  <span>AI Assistant</span>
-                  <Badge className="text-xs bg-green-100 text-green-800">Active</Badge>
+                  <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full flex items-center justify-center shadow-md">
+                    <Brain className="w-4 h-4 text-blue-900" />
+                  </div>
+                  <span className="text-blue-900">AI Assistant</span>
+                  <Badge className="text-xs bg-green-500 text-white">Gemini AI</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-600 mb-3">
-                  AI-powered features to help you:
+              <CardContent className="pt-4">
+                <p className="text-sm text-slate-700 mb-3 font-medium">
+                  Powered by Google Gemini AI:
                 </p>
-                <ul className="text-xs text-slate-500 space-y-1">
-                  <li>• Suggest task descriptions</li>
-                  <li>• Predict billing amounts</li>
-                  <li>• Automate time tracking</li>
-                  <li>• Generate legal documents</li>
+                <ul className="text-sm text-slate-600 space-y-2">
+                  <li className="flex items-center">
+                    <MessageSquare className="w-4 h-4 mr-2 text-blue-600" />
+                    Natural language time entry
+                  </li>
+                  <li className="flex items-center">
+                    <Lightbulb className="w-4 h-4 mr-2 text-blue-600" />
+                    AI task suggestions
+                  </li>
+                  <li className="flex items-center">
+                    <TrendingUp className="w-4 h-4 mr-2 text-blue-600" />
+                    Predictive billing analytics
+                  </li>
+                  <li className="flex items-center">
+                    <BookOpen className="w-4 h-4 mr-2 text-blue-600" />
+                    Legal research assistant
+                  </li>
                 </ul>
                 <Button 
                   size="sm" 
-                  className="mt-3 w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  className="mt-4 w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                   onClick={(e) => {
                     e.stopPropagation()
                     setShowAIAssistant(true)
                   }}
                 >
+                  <Brain className="w-4 h-4 mr-2" />
                   Launch AI Assistant
                 </Button>
               </CardContent>

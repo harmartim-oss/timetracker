@@ -16,128 +16,96 @@ import {
   BookOpen,
   Calculator,
   MessageSquare,
-  Zap
+  Zap,
+  Mic
 } from 'lucide-react'
+import * as geminiService from './services/geminiService.js'
 
 const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) => {
   const [activeFeature, setActiveFeature] = useState('suggestions')
   const [query, setQuery] = useState('')
+  const [nlQuery, setNlQuery] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [billingPrediction, setBillingPrediction] = useState(null)
   const [legalResearch, setLegalResearch] = useState([])
+  const [nlResult, setNlResult] = useState(null)
+  const [apiStatus, setApiStatus] = useState('initializing')
 
-  // AI-powered task suggestions based on historical data
-  const generateTaskSuggestions = () => {
+  useEffect(() => {
+    const initialized = geminiService.initializeGemini()
+    setApiStatus(initialized ? 'ready' : 'error')
+  }, [])
+
+  // AI-powered task suggestions using real Gemini API
+  const generateTaskSuggestions = async () => {
     setIsProcessing(true)
-    
-    // Simulate AI processing
-    setTimeout(() => {
-      const commonTasks = [
-        {
-          category: 'Contract Law',
-          tasks: [
-            'Review and analyze commercial lease agreement',
-            'Draft non-disclosure agreement (NDA)',
-            'Prepare contract amendment documentation',
-            'Conduct due diligence review'
-          ]
-        },
-        {
-          category: 'Corporate Law',
-          tasks: [
-            'Prepare board resolution documents',
-            'Review shareholder agreement terms',
-            'Draft corporate governance policies',
-            'Conduct regulatory compliance audit'
-          ]
-        },
-        {
-          category: 'Litigation',
-          tasks: [
-            'Prepare discovery document requests',
-            'Draft motion for summary judgment',
-            'Conduct witness interview preparation',
-            'Review opposing counsel submissions'
-          ]
-        }
-      ]
-      
-      setSuggestions(commonTasks)
+    try {
+      const results = await geminiService.generateTaskSuggestions('general legal practice')
+      setSuggestions(results)
+    } catch (error) {
+      console.error('Error generating suggestions:', error)
+    } finally {
       setIsProcessing(false)
-    }, 1500)
+    }
   }
 
-  // Predictive billing analysis using machine learning concepts
-  const generateBillingPrediction = () => {
+  // Predictive billing analysis using real Gemini API
+  const generateBillingPrediction = async () => {
     setIsProcessing(true)
-    
-    setTimeout(() => {
-      const totalHours = timeEntries.reduce((sum, entry) => sum + entry.totalHours, 0)
-      const avgRate = timeEntries.length > 0 
-        ? timeEntries.reduce((sum, entry) => sum + entry.rate, 0) / timeEntries.length 
-        : 350
-      
-      const prediction = {
-        currentMonth: {
-          hoursLogged: totalHours,
-          projectedHours: totalHours * 1.3,
-          projectedRevenue: totalHours * 1.3 * avgRate
-        },
-        trends: {
-          efficiency: 'Increasing',
-          clientSatisfaction: 'High',
-          profitability: 'Above Average'
-        },
-        recommendations: [
-          'Consider increasing rates for new clients by 5-10%',
-          'Focus on high-value contract review work',
-          'Implement time-blocking for better efficiency'
-        ]
-      }
-      
+    try {
+      const prediction = await geminiService.generateBillingPrediction(timeEntries)
       setBillingPrediction(prediction)
+    } catch (error) {
+      console.error('Error generating prediction:', error)
+    } finally {
       setIsProcessing(false)
-    }, 2000)
+    }
   }
 
-  // Legal research assistant
-  const performLegalResearch = () => {
+  // Legal research using real Gemini API
+  const performLegalResearch = async () => {
     if (!query.trim()) return
     
     setIsProcessing(true)
-    
-    setTimeout(() => {
-      const mockResearch = [
-        {
-          title: 'Ontario Commercial Tenancies Act',
-          type: 'Statute',
-          relevance: 95,
-          summary: 'Key provisions regarding commercial lease agreements and tenant rights in Ontario.',
-          citation: 'R.S.O. 1990, c. C.7'
-        },
-        {
-          title: 'Shelanu Inc. v. Print Three Franchising Corp.',
-          type: 'Case Law',
-          relevance: 88,
-          summary: 'Ontario Court of Appeal decision on commercial lease interpretation and good faith obligations.',
-          citation: '2003 CanLII 52151 (ON CA)'
-        },
-        {
-          title: 'Personal Information Protection and Electronic Documents Act',
-          type: 'Federal Statute',
-          relevance: 82,
-          summary: 'Federal privacy legislation applicable to commercial organizations.',
-          citation: 'S.C. 2000, c. 5'
-        }
-      ]
-      
-      setLegalResearch(mockResearch)
+    try {
+      const results = await geminiService.performLegalResearch(query)
+      setLegalResearch(results)
+    } catch (error) {
+      console.error('Error performing research:', error)
+    } finally {
       setIsProcessing(false)
-    }, 1800)
+    }
+  }
+
+  // Natural language time entry parsing
+  const handleNaturalLanguageEntry = async () => {
+    if (!nlQuery.trim()) return
+    
+    setIsProcessing(true)
+    try {
+      const result = await geminiService.parseNaturalLanguageEntry(nlQuery)
+      if (result) {
+        setNlResult(result)
+        // Auto-fill the entry if callback provided
+        if (onSuggestTask) {
+          onSuggestTask(result.description, result)
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing natural language:', error)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const aiFeatures = [
+    {
+      id: 'nlentry',
+      name: 'Natural Language',
+      icon: MessageSquare,
+      description: 'Describe time entries in plain English'
+    },
     {
       id: 'suggestions',
       name: 'Task Suggestions',
@@ -169,18 +137,18 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
       <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto">
         
         {/* Header */}
-        <div className="p-6 border-b bg-gradient-to-r from-purple-50 to-blue-50">
+        <div className="p-6 border-b bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900">
           <div className="flex justify-between items-start">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                <Brain className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 bg-gradient-to-r from-amber-400 to-amber-500 rounded-full flex items-center justify-center shadow-lg">
+                <Brain className="w-6 h-6 text-blue-900" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-1">AI Legal Assistant</h2>
-                <p className="text-slate-600">Powered by advanced machine learning for legal practice optimization</p>
+                <h2 className="text-2xl font-bold text-white mb-1">AI Legal Assistant</h2>
+                <p className="text-blue-100">Powered by Google Gemini AI • {apiStatus === 'ready' ? 'Connected' : 'Initializing...'}</p>
               </div>
             </div>
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} className="bg-white hover:bg-blue-50">
               Close
             </Button>
           </div>
@@ -219,18 +187,119 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
           {/* Main Content */}
           <div className="flex-1 p-6">
             
+            {/* Natural Language Time Entry */}
+            {activeFeature === 'nlentry' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Natural Language Time Entry</h3>
+                  <p className="text-slate-600 mb-4">Describe your time entry in plain English and let AI parse it for you</p>
+                  
+                  <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white">
+                    <CardContent className="pt-6">
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-sm font-medium text-slate-700">Describe your time entry:</Label>
+                          <div className="flex space-x-2 mt-2">
+                            <Textarea
+                              placeholder='Examples:&#10;• "log 2.5 hours for Smith Corp contract review"&#10;• "3 hours client meeting with Johnson"&#10;• "draft NDA for XYZ Inc, 1 hour"'
+                              value={nlQuery}
+                              onChange={(e) => setNlQuery(e.target.value)}
+                              className="flex-1 min-h-[100px]"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault()
+                                  handleNaturalLanguageEntry()
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                        
+                        <Button 
+                          onClick={handleNaturalLanguageEntry}
+                          disabled={isProcessing || !nlQuery.trim()}
+                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                        >
+                          {isProcessing ? (
+                            <>
+                              <Zap className="w-4 h-4 mr-2 animate-spin" />
+                              Processing with AI...
+                            </>
+                          ) : (
+                            <>
+                              <MessageSquare className="w-4 h-4 mr-2" />
+                              Parse Time Entry
+                            </>
+                          )}
+                        </Button>
+
+                        {nlResult && (
+                          <div className="mt-4 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
+                            <h4 className="font-semibold text-green-900 mb-3 flex items-center">
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              Parsed Time Entry
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <span className="font-medium text-slate-600">Client:</span>
+                                <p className="text-slate-900">{nlResult.client || 'Not specified'}</p>
+                              </div>
+                              <div>
+                                <span className="font-medium text-slate-600">Matter:</span>
+                                <p className="text-slate-900">{nlResult.matter || 'Not specified'}</p>
+                              </div>
+                              <div>
+                                <span className="font-medium text-slate-600">Time:</span>
+                                <p className="text-slate-900">{nlResult.hours}h {nlResult.minutes}m</p>
+                              </div>
+                              <div>
+                                <span className="font-medium text-slate-600">Description:</span>
+                                <p className="text-slate-900">{nlResult.description}</p>
+                              </div>
+                            </div>
+                            <p className="mt-3 text-xs text-green-700">✓ Click on a task suggestion or close this dialog to apply this entry</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="mt-6">
+                    <h4 className="font-semibold text-slate-900 mb-3">Example Phrases:</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {[
+                        'Log 2 hours for ABC Corp merger review',
+                        'Client call with Johnson Industries, 45 minutes',
+                        'Draft purchase agreement for Smith Co, 3.5 hours',
+                        'Research intellectual property issues, 1 hour 30 minutes'
+                      ].map((example, idx) => (
+                        <Card key={idx} className="cursor-pointer hover:bg-blue-50 transition-colors" onClick={() => setNlQuery(example)}>
+                          <CardContent className="p-3">
+                            <p className="text-sm text-slate-700 flex items-center">
+                              <Mic className="w-4 h-4 mr-2 text-blue-500" />
+                              "{example}"
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Task Suggestions */}
             {activeFeature === 'suggestions' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <div>
                     <h3 className="text-xl font-bold text-slate-900">AI Task Suggestions</h3>
-                    <p className="text-slate-600">Get intelligent task descriptions based on your practice patterns</p>
+                    <p className="text-slate-600">Get intelligent task descriptions powered by Google Gemini AI</p>
                   </div>
                   <Button 
                     onClick={generateTaskSuggestions}
                     disabled={isProcessing}
-                    className="bg-purple-600 hover:bg-purple-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                   >
                     {isProcessing ? (
                       <>
@@ -249,16 +318,16 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
                 {suggestions.length > 0 && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {suggestions.map((category, idx) => (
-                      <Card key={idx} className="border-2 border-purple-100">
-                        <CardHeader>
-                          <CardTitle className="text-lg text-purple-900">{category.category}</CardTitle>
+                      <Card key={idx} className="border-2 border-blue-100 hover:shadow-lg transition-shadow">
+                        <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
+                          <CardTitle className="text-lg text-blue-900">{category.category}</CardTitle>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pt-4">
                           <div className="space-y-2">
                             {category.tasks.map((task, taskIdx) => (
                               <div 
                                 key={taskIdx}
-                                className="p-2 bg-purple-50 rounded cursor-pointer hover:bg-purple-100 transition-colors"
+                                className="p-2 bg-blue-50 rounded cursor-pointer hover:bg-blue-100 transition-colors border border-transparent hover:border-blue-300"
                                 onClick={() => onSuggestTask && onSuggestTask(task)}
                               >
                                 <p className="text-sm text-slate-700">{task}</p>
