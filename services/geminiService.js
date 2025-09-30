@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -12,7 +12,7 @@ export const initializeGemini = () => {
       console.error('Gemini API key not found in environment variables');
       return false;
     }
-    genAI = new GoogleGenerativeAI(API_KEY);
+    genAI = new GoogleGenAI(API_KEY);
     model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     return true;
   } catch (error) {

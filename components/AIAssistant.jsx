@@ -19,7 +19,7 @@ import {
   Zap,
   Mic
 } from 'lucide-react'
-import * as geminiService from './services/geminiService.js'
+import * as geminiService from '../services/geminiService.js'
 
 const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) => {
   const [activeFeature, setActiveFeature] = useState('suggestions')
