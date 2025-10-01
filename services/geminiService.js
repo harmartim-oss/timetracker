@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import * as nlpService from './nlpService.js';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -51,7 +52,26 @@ export const generateTaskSuggestions = async (practiceArea = 'general') => {
 };
 
 // Generate natural language time entry from text
+// Enhanced with local NLP service for better accuracy
 export const parseNaturalLanguageEntry = async (text) => {
+  // First try local NLP service for immediate results
+  const localResult = nlpService.parseTimeEntry(text);
+  
+  if (localResult && localResult.confidence > 70) {
+    // High confidence local result, return immediately
+    return {
+      client: localResult.client,
+      matter: localResult.matter,
+      description: localResult.description,
+      hours: localResult.hours,
+      minutes: localResult.minutes,
+      practiceArea: localResult.practiceArea,
+      source: 'local-nlp',
+      confidence: localResult.confidence
+    };
+  }
+  
+  // For low confidence or complex cases, use Gemini AI
   try {
     if (!model) initializeGemini();
     
@@ -72,17 +92,32 @@ export const parseNaturalLanguageEntry = async (text) => {
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const text = response.text();
+    const responseText = response.text();
     
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const geminiResult = JSON.parse(jsonMatch[0]);
+      return {
+        ...geminiResult,
+        source: 'gemini-ai',
+        confidence: 95
+      };
     }
     
-    return null;
+    // Fallback to local result if Gemini fails
+    return localResult ? {
+      ...localResult,
+      source: 'local-nlp-fallback',
+      confidence: localResult.confidence
+    } : null;
   } catch (error) {
     console.error('Error parsing natural language entry:', error);
-    return null;
+    // Return local result as fallback
+    return localResult ? {
+      ...localResult,
+      source: 'local-nlp-fallback',
+      confidence: localResult.confidence
+    } : null;
   }
 };
 

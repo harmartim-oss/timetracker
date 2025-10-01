@@ -5,6 +5,9 @@ import { Input } from '@/components/ui/input.jsx'
 import { Label } from '@/components/ui/label.jsx'
 import { Textarea } from '@/components/ui/textarea.jsx'
 import { Badge } from '@/components/ui/badge.jsx'
+import LandingPage from './components/LandingPage.jsx'
+import Login from './components/Login.jsx'
+import Signup from './components/Signup.jsx'
 import InvoiceGenerator from './components/InvoiceGenerator.jsx'
 import InvoiceManager from './components/InvoiceManager.jsx'
 import NotificationCenter from './components/NotificationCenter.jsx'
@@ -33,12 +36,18 @@ import {
   BookOpen,
   LayoutDashboard,
   Bell,
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react'
 import * as geminiService from './services/geminiService.js'
+import * as authService from './services/authService.js'
 import './App.css'
 
 function App() {
+  // Authentication state
+  const [currentUser, setCurrentUser] = useState(null)
+  const [view, setView] = useState('landing') // 'landing', 'login', 'signup', 'app'
+  
   const [activeTimer, setActiveTimer] = useState(null)
   const [timeEntries, setTimeEntries] = useState([])
   const [clients, setClients] = useState([])
@@ -83,6 +92,17 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [isEnhancingDescription, setIsEnhancingDescription] = useState(false)
   const [descriptionSuggestion, setDescriptionSuggestion] = useState(null)
+
+  // Check authentication on mount
+  useEffect(() => {
+    const user = authService.getCurrentUser()
+    if (user) {
+      setCurrentUser(user)
+      setView('app')
+    } else {
+      setView('landing')
+    }
+  }, [])
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -217,6 +237,55 @@ function App() {
     }
     return () => clearInterval(interval)
   }, [isTimerRunning, startTime, elapsedTime])
+
+  // Authentication handlers
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user)
+    // Update settings with user information
+    setSettings(prev => ({
+      ...prev,
+      firmName: user.firmName || prev.firmName,
+      firmEmail: user.email || prev.firmEmail,
+      currentUser: {
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        billingRate: user.billingRate || '350'
+      }
+    }))
+    setView('app')
+  }
+
+  const handleSignupSuccess = (user) => {
+    setCurrentUser(user)
+    // Initialize settings with user information
+    setSettings(prev => ({
+      ...prev,
+      firmName: user.firmName || prev.firmName,
+      firmEmail: user.email || prev.firmEmail,
+      currentUser: {
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        billingRate: user.billingRate || '350'
+      }
+    }))
+    setView('app')
+  }
+
+  const handleLogout = () => {
+    authService.logout()
+    setCurrentUser(null)
+    setView('landing')
+    // Reset app state
+    setShowInvoiceGenerator(false)
+    setShowInvoiceManager(false)
+    setShowNotificationCenter(false)
+    setShowAIAssistant(false)
+    setShowClientManager(false)
+    setShowDashboard(false)
+    setShowSettings(false)
+  }
 
   const formatTime = (milliseconds) => {
     const totalSeconds = Math.floor(milliseconds / 1000)
@@ -407,6 +476,37 @@ function App() {
 
   const unreadNotificationCount = notifications.filter(n => !n.read).length
 
+  // Render different views based on authentication state
+  if (view === 'landing') {
+    return (
+      <LandingPage
+        onShowLogin={() => setView('login')}
+        onShowSignup={() => setView('signup')}
+      />
+    )
+  }
+
+  if (view === 'login') {
+    return (
+      <Login
+        onLoginSuccess={handleLoginSuccess}
+        onShowSignup={() => setView('signup')}
+        onBack={() => setView('landing')}
+      />
+    )
+  }
+
+  if (view === 'signup') {
+    return (
+      <Signup
+        onSignupSuccess={handleSignupSuccess}
+        onShowLogin={() => setView('login')}
+        onBack={() => setView('landing')}
+      />
+    )
+  }
+
+  // Main app view (authenticated users only)
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       {/* Header */}
@@ -464,6 +564,16 @@ function App() {
               >
                 <SettingsIcon className="w-4 h-4 mr-2" />
                 Settings
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-white hover:bg-red-600 transition-colors"
+                onClick={handleLogout}
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
               </Button>
             </nav>
           </div>
