@@ -7,6 +7,9 @@ import { Textarea } from '@/components/ui/textarea.jsx'
 import { Badge } from '@/components/ui/badge.jsx'
 import InvoiceGenerator from './components/InvoiceGenerator.jsx'
 import AIAssistant from './components/AIAssistant.jsx'
+import ClientManager from './components/ClientManager.jsx'
+import Dashboard from './components/Dashboard.jsx'
+import Settings from './components/Settings.jsx'
 import { 
   Clock, 
   Play, 
@@ -19,19 +22,39 @@ import {
   DollarSign,
   Timer,
   BarChart3,
-  Settings,
+  Settings as SettingsIcon,
   Scale,
   Brain,
   MessageSquare,
   Lightbulb,
   TrendingUp,
-  BookOpen
+  BookOpen,
+  LayoutDashboard
 } from 'lucide-react'
 import './App.css'
 
 function App() {
   const [activeTimer, setActiveTimer] = useState(null)
   const [timeEntries, setTimeEntries] = useState([])
+  const [clients, setClients] = useState([])
+  const [invoices, setInvoices] = useState([])
+  const [settings, setSettings] = useState({
+    firmName: 'Tim Harmar Legal',
+    firmEmail: 'contact@timharmar.com',
+    firmPhone: '',
+    firmAddress: '',
+    defaultRate: '350',
+    defaultPaymentTerms: '30',
+    defaultInterestRate: '2.0',
+    invoicePrefix: 'INV',
+    defaultInvoiceNotes: 'Thank you for your business. Payment is due within the specified terms.',
+    currentUser: {
+      name: 'Tim Harmar',
+      role: 'Admin',
+      email: 'tim@timharmar.com',
+      billingRate: '350'
+    }
+  })
   const [currentEntry, setCurrentEntry] = useState({
     client: '',
     matter: '',
@@ -39,13 +62,74 @@ function App() {
     hours: 0,
     minutes: 0,
     rate: 350,
-    isBillable: true
+    isBillable: true,
+    user: 'Tim Harmar'
   })
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [startTime, setStartTime] = useState(null)
   const [showInvoiceGenerator, setShowInvoiceGenerator] = useState(false)
   const [showAIAssistant, setShowAIAssistant] = useState(false)
+  const [showClientManager, setShowClientManager] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+
+  // Load data from localStorage on mount
+  useEffect(() => {
+    const savedClients = localStorage.getItem('timetracker_clients')
+    const savedTimeEntries = localStorage.getItem('timetracker_timeEntries')
+    const savedInvoices = localStorage.getItem('timetracker_invoices')
+    const savedSettings = localStorage.getItem('timetracker_settings')
+
+    if (savedClients) {
+      try {
+        setClients(JSON.parse(savedClients))
+      } catch (e) {
+        console.error('Error loading clients:', e)
+      }
+    }
+
+    if (savedTimeEntries) {
+      try {
+        setTimeEntries(JSON.parse(savedTimeEntries))
+      } catch (e) {
+        console.error('Error loading time entries:', e)
+      }
+    }
+
+    if (savedInvoices) {
+      try {
+        setInvoices(JSON.parse(savedInvoices))
+      } catch (e) {
+        console.error('Error loading invoices:', e)
+      }
+    }
+
+    if (savedSettings) {
+      try {
+        setSettings(JSON.parse(savedSettings))
+      } catch (e) {
+        console.error('Error loading settings:', e)
+      }
+    }
+  }, [])
+
+  // Save to localStorage whenever data changes
+  useEffect(() => {
+    localStorage.setItem('timetracker_clients', JSON.stringify(clients))
+  }, [clients])
+
+  useEffect(() => {
+    localStorage.setItem('timetracker_timeEntries', JSON.stringify(timeEntries))
+  }, [timeEntries])
+
+  useEffect(() => {
+    localStorage.setItem('timetracker_invoices', JSON.stringify(invoices))
+  }, [invoices])
+
+  useEffect(() => {
+    localStorage.setItem('timetracker_settings', JSON.stringify(settings))
+  }, [settings])
 
   // Timer functionality
   useEffect(() => {
@@ -105,7 +189,8 @@ function App() {
         totalHours,
         billableAmount,
         date: new Date().toLocaleDateString(),
-        time: new Date().toLocaleTimeString()
+        time: new Date().toLocaleTimeString(),
+        user: currentEntry.user || settings.currentUser?.name || 'Unknown'
       }
       
       setTimeEntries(prev => [newEntry, ...prev])
@@ -115,8 +200,9 @@ function App() {
         description: '',
         hours: 0,
         minutes: 0,
-        rate: 350,
-        isBillable: true
+        rate: settings.currentUser?.billingRate || 350,
+        isBillable: true,
+        user: settings.currentUser?.name || 'Tim Harmar'
       })
     }
   }
@@ -168,12 +254,22 @@ function App() {
               </div>
             </div>
             <nav className="flex items-center space-x-2">
-              <Button variant="ghost" size="sm" className="text-white hover:bg-blue-700">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Reports
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-white hover:bg-blue-700"
+                onClick={() => setShowDashboard(true)}
+              >
+                <LayoutDashboard className="w-4 h-4 mr-2" />
+                Dashboard
               </Button>
-              <Button variant="ghost" size="sm" className="text-white hover:bg-blue-700">
-                <Settings className="w-4 h-4 mr-2" />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-white hover:bg-blue-700"
+                onClick={() => setShowSettings(true)}
+              >
+                <SettingsIcon className="w-4 h-4 mr-2" />
                 Settings
               </Button>
             </nav>
@@ -240,24 +336,70 @@ function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="client">Client</Label>
-                    <Input
-                      id="client"
-                      placeholder="Client name"
-                      value={currentEntry.client}
-                      onChange={(e) => setCurrentEntry(prev => ({ ...prev, client: e.target.value }))}
-                    />
+                    {clients.length > 0 ? (
+                      <select
+                        id="client"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md"
+                        value={currentEntry.client}
+                        onChange={(e) => setCurrentEntry(prev => ({ ...prev, client: e.target.value, matter: '' }))}
+                      >
+                        <option value="">Select a client</option>
+                        {clients.map(client => (
+                          <option key={client.id} value={client.name}>{client.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        id="client"
+                        placeholder="Client name or add clients first"
+                        value={currentEntry.client}
+                        onChange={(e) => setCurrentEntry(prev => ({ ...prev, client: e.target.value }))}
+                      />
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="matter">Matter</Label>
-                    <Input
-                      id="matter"
-                      placeholder="Matter description"
-                      value={currentEntry.matter}
-                      onChange={(e) => setCurrentEntry(prev => ({ ...prev, matter: e.target.value }))}
-                    />
+                    {currentEntry.client && clients.find(c => c.name === currentEntry.client)?.matters?.length > 0 ? (
+                      <select
+                        id="matter"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md"
+                        value={currentEntry.matter}
+                        onChange={(e) => {
+                          const selectedClient = clients.find(c => c.name === currentEntry.client)
+                          const selectedMatter = selectedClient?.matters.find(m => m.name === e.target.value)
+                          setCurrentEntry(prev => ({ 
+                            ...prev, 
+                            matter: e.target.value,
+                            rate: selectedMatter?.billingRate || prev.rate
+                          }))
+                        }}
+                      >
+                        <option value="">Select a matter</option>
+                        {clients.find(c => c.name === currentEntry.client)?.matters.map(matter => (
+                          <option key={matter.id} value={matter.name}>{matter.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        id="matter"
+                        placeholder="Matter description"
+                        value={currentEntry.matter}
+                        onChange={(e) => setCurrentEntry(prev => ({ ...prev, matter: e.target.value }))}
+                      />
+                    )}
                   </div>
                 </div>
                 
+                <div>
+                  <Label htmlFor="user">Billed By</Label>
+                  <Input
+                    id="user"
+                    placeholder="User name"
+                    value={currentEntry.user}
+                    onChange={(e) => setCurrentEntry(prev => ({ ...prev, user: e.target.value }))}
+                  />
+                </div>
+
                 <div>
                   <Label htmlFor="description">Task Description</Label>
                   <Textarea
@@ -446,17 +588,29 @@ function App() {
                   <FileText className="w-4 h-4 mr-2" />
                   Generate Invoice
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setShowClientManager(true)}
+                >
                   <User className="w-4 h-4 mr-2" />
                   Manage Clients
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  View Reports
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setShowDashboard(true)}
+                >
+                  <LayoutDashboard className="w-4 h-4 mr-2" />
+                  View Dashboard
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setShowSettings(true)}
+                >
                   <DollarSign className="w-4 h-4 mr-2" />
-                  Billing Settings
+                  Settings
                 </Button>
               </CardContent>
             </Card>
@@ -529,6 +683,34 @@ function App() {
           onClose={() => setShowAIAssistant(false)}
           onSuggestTask={handleTaskSuggestion}
           onPredictBilling={handleBillingPrediction}
+        />
+      )}
+
+      {/* Client Manager Modal */}
+      {showClientManager && (
+        <ClientManager 
+          clients={clients}
+          onUpdateClients={setClients}
+          onClose={() => setShowClientManager(false)}
+        />
+      )}
+
+      {/* Dashboard Modal */}
+      {showDashboard && (
+        <Dashboard 
+          clients={clients}
+          timeEntries={timeEntries}
+          invoices={invoices}
+          onClose={() => setShowDashboard(false)}
+        />
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <Settings 
+          settings={settings}
+          onUpdateSettings={setSettings}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>
