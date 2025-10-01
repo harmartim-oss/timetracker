@@ -517,15 +517,15 @@ function App() {
             </Card>
 
             {/* Manual Time Entry */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Plus className="w-5 h-5 text-slate-600" />
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b">
+                <CardTitle className="flex items-center space-x-2 text-slate-900">
+                  <Plus className="w-5 h-5 text-blue-600" />
                   <span>Add Time Entry</span>
                 </CardTitle>
-                <CardDescription>Manually enter time for completed tasks</CardDescription>
+                <CardDescription className="text-slate-600">Manually enter time for completed tasks</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="client">Client</Label>
@@ -720,15 +720,15 @@ function App() {
             </Card>
 
             {/* Recent Time Entries */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="w-5 h-5 text-slate-600" />
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b">
+                <CardTitle className="flex items-center space-x-2 text-slate-900">
+                  <Clock className="w-5 h-5 text-blue-600" />
                   <span>Recent Time Entries</span>
                 </CardTitle>
-                <CardDescription>Your latest recorded time entries</CardDescription>
+                <CardDescription className="text-slate-600">Your latest recorded time entries</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4">
                 {timeEntries.length === 0 ? (
                   <div className="text-center py-8 text-slate-500">
                     <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -792,14 +792,14 @@ function App() {
           <div className="space-y-6">
             
             {/* Daily Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calendar className="w-5 h-5 text-slate-600" />
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-white border-b">
+                <CardTitle className="flex items-center space-x-2 text-slate-900">
+                  <Calendar className="w-5 h-5 text-green-600" />
                   <span>Today's Summary</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
                   <span className="text-sm text-green-700 font-medium flex items-center">
                     <DollarSign className="w-4 h-4 mr-1" />
@@ -823,14 +823,14 @@ function App() {
             </Card>
 
             {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileText className="w-5 h-5 text-slate-600" />
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white border-b">
+                <CardTitle className="flex items-center space-x-2 text-slate-900">
+                  <FileText className="w-5 h-5 text-blue-600" />
                   <span>Quick Actions</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2 pt-4">
                 <Button 
                   variant="outline" 
                   className="w-full justify-start"
