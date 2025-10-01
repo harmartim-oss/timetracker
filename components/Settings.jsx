@@ -12,11 +12,44 @@ import {
   Mail,
   Phone,
   MapPin,
-  X
+  X,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react'
 
 const Settings = ({ settings, onUpdateSettings, onClose }) => {
   const [localSettings, setLocalSettings] = useState(settings)
+  const [logoPreview, setLogoPreview] = useState(settings.firmLogo || null)
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file')
+        return
+      }
+      
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Logo file size must be less than 2MB')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = reader.result
+        setLogoPreview(base64String)
+        setLocalSettings(prev => ({ ...prev, firmLogo: base64String }))
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleRemoveLogo = () => {
+    setLogoPreview(null)
+    setLocalSettings(prev => ({ ...prev, firmLogo: null }))
+  }
 
   const handleSave = () => {
     onUpdateSettings(localSettings)
@@ -91,6 +124,61 @@ const Settings = ({ settings, onUpdateSettings, onClose }) => {
                   onChange={(e) => setLocalSettings(prev => ({ ...prev, firmAddress: e.target.value }))}
                   rows={3}
                 />
+              </div>
+              
+              {/* Firm Logo Upload */}
+              <div>
+                <Label htmlFor="firmLogo">Firm Logo</Label>
+                <div className="mt-2 space-y-3">
+                  {logoPreview ? (
+                    <div className="flex items-start space-x-4">
+                      <div className="flex-shrink-0">
+                        <img 
+                          src={logoPreview} 
+                          alt="Firm Logo Preview" 
+                          className="w-32 h-32 object-contain border-2 border-slate-200 rounded-lg bg-white p-2"
+                        />
+                      </div>
+                      <div className="flex-grow">
+                        <p className="text-sm text-slate-600 mb-2">Logo uploaded successfully</p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleRemoveLogo}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Remove Logo
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-3">
+                      <div className="flex items-center justify-center w-32 h-32 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50">
+                        <ImageIcon className="w-12 h-12 text-slate-400" />
+                      </div>
+                      <div className="flex-grow">
+                        <Label 
+                          htmlFor="logoUpload" 
+                          className="cursor-pointer inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Logo
+                        </Label>
+                        <Input
+                          id="logoUpload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                        <p className="text-xs text-slate-500 mt-2">
+                          PNG, JPG, or SVG (max 2MB). Recommended: 200x200px
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

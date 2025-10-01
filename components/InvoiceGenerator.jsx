@@ -266,38 +266,59 @@ const InvoiceGenerator = ({ timeEntries, onClose, onSaveInvoice, settings }) => 
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-white border rounded-lg p-6 space-y-6">
+              <div className="bg-white border rounded-lg p-8 space-y-6 shadow-sm">
                 
                 {/* Firm Header */}
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start border-b pb-6">
                   <div>
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
-                        <Scale className="w-6 h-6 text-white" />
-                      </div>
+                    <div className="flex items-center space-x-4 mb-4">
+                      {settings?.firmLogo ? (
+                        <img 
+                          src={settings.firmLogo} 
+                          alt="Firm Logo" 
+                          className="w-16 h-16 object-contain"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg shadow-md">
+                          <Scale className="w-8 h-8 text-white" />
+                        </div>
+                      )}
                       <div>
-                        <h3 className="text-xl font-bold text-slate-900">Tim Harmar Legal</h3>
-                        <p className="text-sm text-slate-600">Legal and Consulting Services</p>
+                        <h3 className="text-2xl font-bold text-slate-900 tracking-tight">
+                          {settings?.firmName || 'Tim Harmar Legal'}
+                        </h3>
+                        <p className="text-sm text-slate-600 mt-1">Legal and Consulting Services</p>
                       </div>
                     </div>
-                    <div className="text-sm text-slate-600 space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <MapPin className="w-4 h-4" />
-                        <span>Sault Ste. Marie, Ontario</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Phone className="w-4 h-4" />
-                        <span>(705) 943-5049</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Mail className="w-4 h-4" />
-                        <span>kburton@timharmar.com</span>
-                      </div>
+                    <div className="text-sm text-slate-700 space-y-1.5 leading-relaxed">
+                      {settings?.firmAddress ? (
+                        <div className="flex items-start space-x-2">
+                          <MapPin className="w-4 h-4 mt-0.5 text-slate-500" />
+                          <span>{settings.firmAddress}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <MapPin className="w-4 h-4 text-slate-500" />
+                          <span>Sault Ste. Marie, Ontario</span>
+                        </div>
+                      )}
+                      {settings?.firmPhone && (
+                        <div className="flex items-center space-x-2">
+                          <Phone className="w-4 h-4 text-slate-500" />
+                          <span>{settings.firmPhone}</span>
+                        </div>
+                      )}
+                      {settings?.firmEmail && (
+                        <div className="flex items-center space-x-2">
+                          <Mail className="w-4 h-4 text-slate-500" />
+                          <span>{settings.firmEmail}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
-                    <h2 className="text-2xl font-bold text-slate-900 mb-2">INVOICE</h2>
-                    <div className="text-sm text-slate-600 space-y-1">
+                    <h2 className="text-3xl font-bold text-slate-900 mb-3 tracking-tight">INVOICE</h2>
+                    <div className="text-sm text-slate-700 space-y-1.5 bg-slate-50 p-4 rounded-lg">
                       <div>Invoice #: {invoiceData.invoiceNumber}</div>
                       <div>Date: {new Date(invoiceData.invoiceDate).toLocaleDateString()}</div>
                       <div>Due: {new Date(invoiceData.dueDate).toLocaleDateString()}</div>
