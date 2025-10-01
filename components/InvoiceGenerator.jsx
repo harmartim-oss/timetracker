@@ -19,16 +19,22 @@ import {
   Building
 } from 'lucide-react'
 
-const InvoiceGenerator = ({ timeEntries, onClose }) => {
+const InvoiceGenerator = ({ timeEntries, onClose, onSaveInvoice, settings }) => {
   const [invoiceData, setInvoiceData] = useState({
-    invoiceNumber: `INV-${Date.now()}`,
+    invoiceNumber: `${settings?.invoicePrefix || 'INV'}-${Date.now()}`,
     clientName: '',
     clientAddress: '',
     clientEmail: '',
+    clientMatter: '',
     invoiceDate: new Date().toISOString().split('T')[0],
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    notes: '',
-    paymentTerms: 'Net 30 days'
+    dueDate: new Date(Date.now() + (parseInt(settings?.defaultPaymentTerms || 30)) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    notes: settings?.defaultInvoiceNotes || '',
+    paymentTerms: `Net ${settings?.defaultPaymentTerms || 30} days`,
+    status: 'draft', // draft, sent, paid, overdue
+    sentDate: null,
+    paidDate: null,
+    paidAmount: null,
+    interestRate: parseFloat(settings?.defaultInterestRate || 2.0)
   })
 
   const [selectedEntries, setSelectedEntries] = useState(
@@ -51,15 +57,25 @@ const InvoiceGenerator = ({ timeEntries, onClose }) => {
   const total = subtotal + hst
 
   const generateInvoice = () => {
-    // In a real application, this would generate a PDF or send to a backend
-    console.log('Generating invoice:', {
+    const invoice = {
+      id: Date.now(),
       ...invoiceData,
       entries: selectedEntriesData,
       subtotal,
       hst,
-      total
-    })
-    alert('Invoice generated successfully! (In production, this would create a PDF)')
+      total,
+      createdDate: new Date().toISOString()
+    }
+    
+    // Save invoice via callback
+    if (onSaveInvoice) {
+      onSaveInvoice(invoice)
+    }
+    
+    // In a real application, this would generate a PDF
+    console.log('Invoice generated:', invoice)
+    alert('Invoice generated successfully!\n\nYou can now track this invoice in the Invoice Management section.')
+    onClose()
   }
 
   return (
@@ -98,6 +114,15 @@ const InvoiceGenerator = ({ timeEntries, onClose }) => {
                     placeholder="Client or company name"
                     value={invoiceData.clientName}
                     onChange={(e) => setInvoiceData(prev => ({ ...prev, clientName: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="clientMatter">Matter</Label>
+                  <Input
+                    id="clientMatter"
+                    placeholder="Matter description"
+                    value={invoiceData.clientMatter}
+                    onChange={(e) => setInvoiceData(prev => ({ ...prev, clientMatter: e.target.value }))}
                   />
                 </div>
                 <div>
