@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label.jsx'
 import { Textarea } from '@/components/ui/textarea.jsx'
 import { Badge } from '@/components/ui/badge.jsx'
 import InvoiceGenerator from './components/InvoiceGenerator.jsx'
+import InvoiceManager from './components/InvoiceManager.jsx'
+import NotificationCenter from './components/NotificationCenter.jsx'
 import AIAssistant from './components/AIAssistant.jsx'
 import ClientManager from './components/ClientManager.jsx'
 import Dashboard from './components/Dashboard.jsx'
@@ -29,7 +31,8 @@ import {
   Lightbulb,
   TrendingUp,
   BookOpen,
-  LayoutDashboard
+  LayoutDashboard,
+  Bell
 } from 'lucide-react'
 import './App.css'
 
@@ -38,6 +41,7 @@ function App() {
   const [timeEntries, setTimeEntries] = useState([])
   const [clients, setClients] = useState([])
   const [invoices, setInvoices] = useState([])
+  const [notifications, setNotifications] = useState([])
   const [settings, setSettings] = useState({
     firmName: 'Tim Harmar Legal',
     firmEmail: 'contact@timharmar.com',
@@ -69,6 +73,8 @@ function App() {
   const [elapsedTime, setElapsedTime] = useState(0)
   const [startTime, setStartTime] = useState(null)
   const [showInvoiceGenerator, setShowInvoiceGenerator] = useState(false)
+  const [showInvoiceManager, setShowInvoiceManager] = useState(false)
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false)
   const [showAIAssistant, setShowAIAssistant] = useState(false)
   const [showClientManager, setShowClientManager] = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
@@ -79,6 +85,7 @@ function App() {
     const savedClients = localStorage.getItem('timetracker_clients')
     const savedTimeEntries = localStorage.getItem('timetracker_timeEntries')
     const savedInvoices = localStorage.getItem('timetracker_invoices')
+    const savedNotifications = localStorage.getItem('timetracker_notifications')
     const savedSettings = localStorage.getItem('timetracker_settings')
 
     if (savedClients) {
@@ -105,6 +112,14 @@ function App() {
       }
     }
 
+    if (savedNotifications) {
+      try {
+        setNotifications(JSON.parse(savedNotifications))
+      } catch (e) {
+        console.error('Error loading notifications:', e)
+      }
+    }
+
     if (savedSettings) {
       try {
         setSettings(JSON.parse(savedSettings))
@@ -128,8 +143,63 @@ function App() {
   }, [invoices])
 
   useEffect(() => {
+    localStorage.setItem('timetracker_notifications', JSON.stringify(notifications))
+  }, [notifications])
+
+  useEffect(() => {
     localStorage.setItem('timetracker_settings', JSON.stringify(settings))
   }, [settings])
+
+  // Check for overdue invoices and create notifications
+  useEffect(() => {
+    const checkOverdueInvoices = () => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      invoices.forEach(invoice => {
+        if ((invoice.status === 'sent' || invoice.status === 'overdue') && invoice.status !== 'paid') {
+          const dueDate = new Date(invoice.dueDate)
+          dueDate.setHours(0, 0, 0, 0)
+          const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24))
+          
+          if (daysOverdue > 0) {
+            // Check if notification already exists for this invoice today
+            const existingNotification = notifications.find(n => 
+              n.invoiceId === invoice.id && 
+              new Date(n.date).toDateString() === today.toDateString()
+            )
+            
+            if (!existingNotification) {
+              const notification = {
+                id: Date.now() + Math.random(),
+                type: 'overdue',
+                title: 'Overdue Invoice',
+                message: `Invoice ${invoice.invoiceNumber} for ${invoice.clientName} is ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} overdue.`,
+                date: new Date().toISOString(),
+                read: false,
+                invoiceId: invoice.id,
+                details: {
+                  invoiceNumber: invoice.invoiceNumber,
+                  client: invoice.clientName,
+                  amount: invoice.total?.toFixed(2),
+                  dueDate: invoice.dueDate,
+                  daysOverdue: daysOverdue
+                }
+              }
+              setNotifications(prev => [notification, ...prev])
+            }
+          }
+        }
+      })
+    }
+    
+    // Check on mount and whenever invoices change
+    checkOverdueInvoices()
+    
+    // Check daily
+    const dailyCheck = setInterval(checkOverdueInvoices, 24 * 60 * 60 * 1000)
+    return () => clearInterval(dailyCheck)
+  }, [invoices])
 
   // Timer functionality
   useEffect(() => {
@@ -238,6 +308,60 @@ function App() {
     console.log('Billing prediction:', prediction)
   }
 
+  // Invoice handlers
+  const handleSaveInvoice = (invoice) => {
+    const existingIndex = invoices.findIndex(inv => inv.id === invoice.id)
+    if (existingIndex >= 0) {
+      // Update existing invoice
+      const updated = [...invoices]
+      updated[existingIndex] = invoice
+      setInvoices(updated)
+    } else {
+      // Add new invoice
+      setInvoices(prev => [invoice, ...prev])
+    }
+  }
+
+  const handleUpdateInvoice = (updatedInvoice) => {
+    const index = invoices.findIndex(inv => inv.id === updatedInvoice.id)
+    if (index >= 0) {
+      const updated = [...invoices]
+      updated[index] = updatedInvoice
+      setInvoices(updated)
+      
+      // If invoice is marked as paid, create notification
+      if (updatedInvoice.status === 'paid' && invoices[index].status !== 'paid') {
+        const notification = {
+          id: Date.now(),
+          type: 'payment',
+          title: 'Payment Received',
+          message: `Payment received for invoice ${updatedInvoice.invoiceNumber}`,
+          date: new Date().toISOString(),
+          read: false,
+          details: {
+            invoiceNumber: updatedInvoice.invoiceNumber,
+            client: updatedInvoice.clientName,
+            amount: updatedInvoice.paidAmount?.toFixed(2) || updatedInvoice.total?.toFixed(2)
+          }
+        }
+        setNotifications(prev => [notification, ...prev])
+      }
+    }
+  }
+
+  // Notification handlers
+  const handleMarkNotificationAsRead = (notificationId) => {
+    setNotifications(prev => prev.map(n => 
+      n.id === notificationId ? { ...n, read: true } : n
+    ))
+  }
+
+  const handleDeleteNotification = (notificationId) => {
+    setNotifications(prev => prev.filter(n => n.id !== notificationId))
+  }
+
+  const unreadNotificationCount = notifications.filter(n => !n.read).length
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       {/* Header */}
@@ -262,6 +386,20 @@ function App() {
               >
                 <LayoutDashboard className="w-4 h-4 mr-2" />
                 Dashboard
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-white hover:bg-blue-700 relative"
+                onClick={() => setShowNotificationCenter(true)}
+              >
+                <Bell className="w-4 h-4 mr-2" />
+                Notifications
+                {unreadNotificationCount > 0 && (
+                  <Badge className="absolute -top-1 -right-1 bg-red-500 text-white px-2 py-0.5 text-xs">
+                    {unreadNotificationCount}
+                  </Badge>
+                )}
               </Button>
               <Button 
                 variant="ghost" 
@@ -591,6 +729,14 @@ function App() {
                 <Button 
                   variant="outline" 
                   className="w-full justify-start"
+                  onClick={() => setShowInvoiceManager(true)}
+                >
+                  <DollarSign className="w-4 h-4 mr-2" />
+                  Manage Invoices
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
                   onClick={() => setShowClientManager(true)}
                 >
                   <User className="w-4 h-4 mr-2" />
@@ -609,7 +755,7 @@ function App() {
                   className="w-full justify-start"
                   onClick={() => setShowSettings(true)}
                 >
-                  <DollarSign className="w-4 h-4 mr-2" />
+                  <SettingsIcon className="w-4 h-4 mr-2" />
                   Settings
                 </Button>
               </CardContent>
@@ -672,7 +818,29 @@ function App() {
       {showInvoiceGenerator && (
         <InvoiceGenerator 
           timeEntries={timeEntries}
+          settings={settings}
           onClose={() => setShowInvoiceGenerator(false)}
+          onSaveInvoice={handleSaveInvoice}
+        />
+      )}
+
+      {/* Invoice Manager Modal */}
+      {showInvoiceManager && (
+        <InvoiceManager 
+          invoices={invoices}
+          settings={settings}
+          onUpdateInvoice={handleUpdateInvoice}
+          onClose={() => setShowInvoiceManager(false)}
+        />
+      )}
+
+      {/* Notification Center Modal */}
+      {showNotificationCenter && (
+        <NotificationCenter 
+          notifications={notifications}
+          onMarkAsRead={handleMarkNotificationAsRead}
+          onDelete={handleDeleteNotification}
+          onClose={() => setShowNotificationCenter(false)}
         />
       )}
 
