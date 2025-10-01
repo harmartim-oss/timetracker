@@ -12,9 +12,12 @@ A modern, AI-powered time tracking and practice management system for legal prof
 
 - ⏱️ **Real-time Timer** - Track billable hours as you work
 - 📝 **Time Entry Management** - Manual entry and editing capabilities
-- 🧾 **Invoice Generation** - Create professional invoices with HST calculation
+- 🧾 **Invoice Generation** - Create professional invoices with HST calculation and firm logo
 - 🤖 **AI Assistant** - Powered by Google Gemini for task suggestions and legal research
+- ✨ **AI Description Enhancement** - Improve time entry descriptions with AI suggestions
+- 🏢 **Firm Branding** - Upload and display your firm logo on invoices and throughout the app
 - 📊 **Analytics Dashboard** - Track billable hours and revenue
+- ⚙️ **Customizable Settings** - Configure firm information, billing rates, and preferences
 
 ## Run Locally
 
@@ -56,3 +59,32 @@ This app is automatically deployed to GitHub Pages when changes are pushed to th
 - **Tailwind CSS** - Styling
 - **Lucide Icons** - Icon library
 - **Google Gemini AI** - AI-powered features
+
+## Key Features in Detail
+
+### Logo Upload & Branding
+Upload your law firm's logo in Settings and it will automatically appear:
+- In the application header
+- On all generated invoices
+- Professional, responsive sizing
+- Supports PNG, JPG, and SVG formats (max 2MB)
+
+### AI-Powered Description Enhancement
+- Click "AI Enhance" next to any task description
+- Get professional, billable-hour appropriate suggestions
+- Accept or reject AI improvements with one click
+- Powered by Google Gemini AI
+
+### Professional Invoice Generation
+- Automatic firm logo placement
+- Uses your firm's contact information from settings
+- HST calculation for Ontario
+- Professional layout and typography
+- Export-ready format
+
+### Customizable Settings
+- Firm information and contact details
+- Logo upload and management
+- Default billing rates and payment terms
+- User profiles and roles
+- Invoice preferences

@@ -32,8 +32,10 @@ import {
   TrendingUp,
   BookOpen,
   LayoutDashboard,
-  Bell
+  Bell,
+  Sparkles
 } from 'lucide-react'
+import * as geminiService from './services/geminiService.js'
 import './App.css'
 
 function App() {
@@ -79,6 +81,8 @@ function App() {
   const [showClientManager, setShowClientManager] = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [isEnhancingDescription, setIsEnhancingDescription] = useState(false)
+  const [descriptionSuggestion, setDescriptionSuggestion] = useState(null)
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -281,6 +285,47 @@ function App() {
   const totalNonBillableHours = timeEntries.filter(e => !e.isBillable).reduce((sum, entry) => sum + entry.totalHours, 0)
   const totalBillableAmount = timeEntries.reduce((sum, entry) => sum + entry.billableAmount, 0)
 
+  // AI Description Enhancement
+  const enhanceDescription = async () => {
+    if (!currentEntry.description.trim()) {
+      alert('Please enter a description first')
+      return
+    }
+    
+    setIsEnhancingDescription(true)
+    try {
+      const enhanced = await geminiService.enhanceTaskDescription(
+        currentEntry.description,
+        currentEntry.client,
+        currentEntry.matter
+      )
+      if (enhanced && enhanced !== currentEntry.description) {
+        setDescriptionSuggestion(enhanced)
+      } else {
+        alert('Unable to enhance description at this time. Please try again later.')
+      }
+    } catch (error) {
+      console.error('Error enhancing description:', error)
+      alert('Error enhancing description. Please try again.')
+    } finally {
+      setIsEnhancingDescription(false)
+    }
+  }
+
+  const acceptDescriptionSuggestion = () => {
+    if (descriptionSuggestion) {
+      setCurrentEntry(prev => ({
+        ...prev,
+        description: descriptionSuggestion
+      }))
+      setDescriptionSuggestion(null)
+    }
+  }
+
+  const rejectDescriptionSuggestion = () => {
+    setDescriptionSuggestion(null)
+  }
+
   // AI Assistant functions
   const handleTaskSuggestion = (suggestedTask, fullEntry = null) => {
     if (fullEntry) {
@@ -368,12 +413,22 @@ function App() {
       <header className="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-500 rounded-lg shadow-lg">
-                <Scale className="w-7 h-7 text-blue-900" />
-              </div>
+            <div className="flex items-center space-x-4">
+              {settings.firmLogo ? (
+                <img 
+                  src={settings.firmLogo} 
+                  alt="Firm Logo" 
+                  className="w-12 h-12 object-contain bg-white rounded-lg p-1 shadow-lg"
+                />
+              ) : (
+                <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-500 rounded-lg shadow-lg">
+                  <Scale className="w-7 h-7 text-blue-900" />
+                </div>
+              )}
               <div>
-                <h1 className="text-xl font-bold text-white">Tim Harmar Legal</h1>
+                <h1 className="text-2xl font-bold text-white tracking-tight">
+                  {settings.firmName || 'Tim Harmar Legal'}
+                </h1>
                 <p className="text-sm text-blue-100">AI-Powered Practice Management</p>
               </div>
             </div>
@@ -381,7 +436,7 @@ function App() {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="text-white hover:bg-blue-700"
+                className="text-white hover:bg-blue-700 transition-colors"
                 onClick={() => setShowDashboard(true)}
               >
                 <LayoutDashboard className="w-4 h-4 mr-2" />
@@ -390,13 +445,13 @@ function App() {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="text-white hover:bg-blue-700 relative"
+                className="text-white hover:bg-blue-700 relative transition-colors"
                 onClick={() => setShowNotificationCenter(true)}
               >
                 <Bell className="w-4 h-4 mr-2" />
                 Notifications
                 {unreadNotificationCount > 0 && (
-                  <Badge className="absolute -top-1 -right-1 bg-red-500 text-white px-2 py-0.5 text-xs">
+                  <Badge className="absolute -top-1 -right-1 bg-red-500 text-white px-2 py-0.5 text-xs rounded-full">
                     {unreadNotificationCount}
                   </Badge>
                 )}
@@ -404,7 +459,7 @@ function App() {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="text-white hover:bg-blue-700"
+                className="text-white hover:bg-blue-700 transition-colors"
                 onClick={() => setShowSettings(true)}
               >
                 <SettingsIcon className="w-4 h-4 mr-2" />
@@ -462,15 +517,15 @@ function App() {
             </Card>
 
             {/* Manual Time Entry */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Plus className="w-5 h-5 text-slate-600" />
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b">
+                <CardTitle className="flex items-center space-x-2 text-slate-900">
+                  <Plus className="w-5 h-5 text-blue-600" />
                   <span>Add Time Entry</span>
                 </CardTitle>
-                <CardDescription>Manually enter time for completed tasks</CardDescription>
+                <CardDescription className="text-slate-600">Manually enter time for completed tasks</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="client">Client</Label>
@@ -539,13 +594,72 @@ function App() {
                 </div>
 
                 <div>
-                  <Label htmlFor="description">Task Description</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label htmlFor="description">Task Description</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={enhanceDescription}
+                      disabled={isEnhancingDescription || !currentEntry.description.trim()}
+                      className="text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300"
+                    >
+                      {isEnhancingDescription ? (
+                        <>
+                          <Sparkles className="w-3 h-3 mr-1 animate-spin" />
+                          Enhancing...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          AI Enhance
+                        </>
+                      )}
+                    </Button>
+                  </div>
                   <Textarea
                     id="description"
                     placeholder="Describe the work performed..."
                     value={currentEntry.description}
                     onChange={(e) => setCurrentEntry(prev => ({ ...prev, description: e.target.value }))}
+                    rows={3}
                   />
+                  
+                  {/* AI Suggestion Card */}
+                  {descriptionSuggestion && (
+                    <Card className="mt-3 border-purple-200 bg-purple-50">
+                      <CardContent className="pt-4">
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
+                            <Sparkles className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="flex-grow">
+                            <p className="text-sm font-semibold text-purple-900 mb-1">AI Enhanced Description</p>
+                            <p className="text-sm text-slate-700 mb-3 bg-white p-3 rounded border border-purple-100">
+                              {descriptionSuggestion}
+                            </p>
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                onClick={acceptDescriptionSuggestion}
+                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                              >
+                                Accept Suggestion
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={rejectDescriptionSuggestion}
+                                className="border-slate-300"
+                              >
+                                Keep Original
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
@@ -606,15 +720,15 @@ function App() {
             </Card>
 
             {/* Recent Time Entries */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="w-5 h-5 text-slate-600" />
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b">
+                <CardTitle className="flex items-center space-x-2 text-slate-900">
+                  <Clock className="w-5 h-5 text-blue-600" />
                   <span>Recent Time Entries</span>
                 </CardTitle>
-                <CardDescription>Your latest recorded time entries</CardDescription>
+                <CardDescription className="text-slate-600">Your latest recorded time entries</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4">
                 {timeEntries.length === 0 ? (
                   <div className="text-center py-8 text-slate-500">
                     <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -678,14 +792,14 @@ function App() {
           <div className="space-y-6">
             
             {/* Daily Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calendar className="w-5 h-5 text-slate-600" />
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-white border-b">
+                <CardTitle className="flex items-center space-x-2 text-slate-900">
+                  <Calendar className="w-5 h-5 text-green-600" />
                   <span>Today's Summary</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
                   <span className="text-sm text-green-700 font-medium flex items-center">
                     <DollarSign className="w-4 h-4 mr-1" />
@@ -709,14 +823,14 @@ function App() {
             </Card>
 
             {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileText className="w-5 h-5 text-slate-600" />
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-white border-b">
+                <CardTitle className="flex items-center space-x-2 text-slate-900">
+                  <FileText className="w-5 h-5 text-blue-600" />
                   <span>Quick Actions</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2 pt-4">
                 <Button 
                   variant="outline" 
                   className="w-full justify-start"
