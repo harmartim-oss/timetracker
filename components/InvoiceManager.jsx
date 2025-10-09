@@ -15,10 +15,15 @@ import {
   Calendar,
   Building,
   Edit,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
+import { Document, Packer, Paragraph, TextRun, Table, TableCell, TableRow, WidthType, AlignmentType, BorderStyle } from 'docx'
+import { saveAs } from 'file-saver'
 
-const InvoiceManager = ({ invoices, onUpdateInvoice, onClose, settings }) => {
+const InvoiceManager = ({ invoices, onUpdateInvoice, onDeleteInvoice, onClose, settings }) => {
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [filter, setFilter] = useState('all') // all, draft, sent, paid, overdue
 
@@ -111,14 +116,298 @@ const InvoiceManager = ({ invoices, onUpdateInvoice, onClose, settings }) => {
     alert(`Follow-up invoice ${followUp.invoiceNumber} created with $${interest.toFixed(2)} interest added.`)
   }
 
-  const exportToPDF = (invoice) => {
-    // Placeholder for PDF export
-    alert(`Exporting invoice ${invoice.invoiceNumber} to PDF...\n(This feature would generate a formatted PDF in production)`)
+  const handleDeleteInvoice = (invoice) => {
+    if (window.confirm(`Are you sure you want to delete invoice ${invoice.invoiceNumber}?\n\nThis action cannot be undone.`)) {
+      onDeleteInvoice(invoice.id)
+      setSelectedInvoice(null)
+    }
   }
 
-  const exportToWord = (invoice) => {
-    // Placeholder for Word export
-    alert(`Exporting invoice ${invoice.invoiceNumber} to Word...\n(This feature would generate a Word document in production)`)
+  const exportToPDF = (invoice) => {
+    try {
+      const doc = new jsPDF()
+      
+      // Header with firm info
+      doc.setFontSize(20)
+      doc.setTextColor(59, 130, 246) // Blue color
+      doc.text(settings?.firmName || 'Tim Harmar Legal', 14, 20)
+      
+      doc.setFontSize(10)
+      doc.setTextColor(100, 116, 139) // Gray color
+      if (settings?.firmEmail) doc.text(settings.firmEmail, 14, 27)
+      if (settings?.firmPhone) doc.text(settings.firmPhone, 14, 32)
+      if (settings?.firmAddress) doc.text(settings.firmAddress, 14, 37)
+      
+      // Invoice title
+      doc.setFontSize(24)
+      doc.setTextColor(15, 23, 42) // Dark gray
+      doc.text('INVOICE', 14, 55)
+      
+      // Invoice details
+      doc.setFontSize(10)
+      doc.setTextColor(71, 85, 105)
+      const rightX = 140
+      doc.text(`Invoice #: ${invoice.invoiceNumber}`, rightX, 20, { align: 'left' })
+      doc.text(`Date: ${new Date(invoice.createdDate).toLocaleDateString()}`, rightX, 27, { align: 'left' })
+      doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`, rightX, 34, { align: 'left' })
+      doc.text(`Status: ${invoice.status.toUpperCase()}`, rightX, 41, { align: 'left' })
+      
+      // Bill to
+      doc.setFontSize(12)
+      doc.setTextColor(15, 23, 42)
+      doc.text('Bill To:', 14, 70)
+      doc.setFontSize(10)
+      doc.setTextColor(71, 85, 105)
+      doc.text(invoice.clientName, 14, 77)
+      if (invoice.clientEmail) doc.text(invoice.clientEmail, 14, 82)
+      if (invoice.clientAddress) doc.text(invoice.clientAddress, 14, 87)
+      if (invoice.clientMatter) doc.text(`Matter: ${invoice.clientMatter}`, 14, 94)
+      
+      // Line items table
+      const tableData = invoice.entries?.map(entry => [
+        new Date(entry.date).toLocaleDateString(),
+        entry.description || '-',
+        `${entry.hours || 0}h ${entry.minutes || 0}m`,
+        `$${entry.rate || 0}`,
+        `$${((entry.hours || 0) + (entry.minutes || 0) / 60) * (entry.rate || 0).toFixed(2)}`
+      ]) || []
+      
+      doc.autoTable({
+        startY: 105,
+        head: [['Date', 'Description', 'Time', 'Rate', 'Amount']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+        styles: { fontSize: 9 },
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 75 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 30, halign: 'right' }
+        }
+      })
+      
+      // Totals
+      const finalY = doc.lastAutoTable.finalY + 10
+      const totalsX = 140
+      
+      doc.setFontSize(10)
+      doc.text('Subtotal:', totalsX, finalY)
+      doc.text(`$${invoice.subtotal?.toFixed(2) || '0.00'}`, 190, finalY, { align: 'right' })
+      
+      if (invoice.hst) {
+        doc.text('HST (13%):', totalsX, finalY + 7)
+        doc.text(`$${invoice.hst?.toFixed(2) || '0.00'}`, 190, finalY + 7, { align: 'right' })
+      }
+      
+      doc.setFontSize(12)
+      doc.setFont(undefined, 'bold')
+      doc.text('Total:', totalsX, finalY + 14)
+      doc.text(`$${invoice.total?.toFixed(2) || '0.00'}`, 190, finalY + 14, { align: 'right' })
+      
+      // Notes
+      if (invoice.notes) {
+        doc.setFontSize(9)
+        doc.setFont(undefined, 'normal')
+        doc.setTextColor(100, 116, 139)
+        doc.text('Notes:', 14, finalY + 30)
+        const splitNotes = doc.splitTextToSize(invoice.notes, 180)
+        doc.text(splitNotes, 14, finalY + 37)
+      }
+      
+      // Save the PDF
+      doc.save(`${invoice.invoiceNumber}.pdf`)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Error generating PDF. Please try again.')
+    }
+  }
+
+  const exportToWord = async (invoice) => {
+    try {
+      // Create table rows for entries
+      const entryRows = invoice.entries?.map(entry => 
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph(new Date(entry.date).toLocaleDateString())],
+              width: { size: 15, type: WidthType.PERCENTAGE }
+            }),
+            new TableCell({
+              children: [new Paragraph(entry.description || '-')],
+              width: { size: 40, type: WidthType.PERCENTAGE }
+            }),
+            new TableCell({
+              children: [new Paragraph(`${entry.hours || 0}h ${entry.minutes || 0}m`)],
+              width: { size: 15, type: WidthType.PERCENTAGE }
+            }),
+            new TableCell({
+              children: [new Paragraph(`$${entry.rate || 0}`)],
+              width: { size: 15, type: WidthType.PERCENTAGE }
+            }),
+            new TableCell({
+              children: [new Paragraph({
+                text: `$${(((entry.hours || 0) + (entry.minutes || 0) / 60) * (entry.rate || 0)).toFixed(2)}`,
+                alignment: AlignmentType.RIGHT
+              })],
+              width: { size: 15, type: WidthType.PERCENTAGE }
+            })
+          ]
+        })
+      ) || []
+      
+      const doc = new Document({
+        sections: [{
+          children: [
+            // Header
+            new Paragraph({
+              text: settings?.firmName || 'Tim Harmar Legal',
+              heading: 'Heading1',
+              spacing: { after: 200 }
+            }),
+            new Paragraph({
+              text: settings?.firmEmail || '',
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              text: settings?.firmPhone || '',
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              text: settings?.firmAddress || '',
+              spacing: { after: 400 }
+            }),
+            
+            // Invoice title
+            new Paragraph({
+              text: 'INVOICE',
+              heading: 'Heading1',
+              spacing: { after: 300 }
+            }),
+            
+            // Invoice details
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Invoice #: ', bold: true }),
+                new TextRun(invoice.invoiceNumber)
+              ],
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Date: ', bold: true }),
+                new TextRun(new Date(invoice.createdDate).toLocaleDateString())
+              ],
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Due Date: ', bold: true }),
+                new TextRun(new Date(invoice.dueDate).toLocaleDateString())
+              ],
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Status: ', bold: true }),
+                new TextRun(invoice.status.toUpperCase())
+              ],
+              spacing: { after: 400 }
+            }),
+            
+            // Bill to
+            new Paragraph({
+              text: 'Bill To:',
+              bold: true,
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              text: invoice.clientName,
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              text: invoice.clientEmail || '',
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              text: invoice.clientAddress || '',
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              text: invoice.clientMatter ? `Matter: ${invoice.clientMatter}` : '',
+              spacing: { after: 400 }
+            }),
+            
+            // Entries table
+            new Table({
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph({ text: 'Date', bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: 'Description', bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: 'Time', bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: 'Rate', bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: 'Amount', bold: true })] })
+                  ]
+                }),
+                ...entryRows
+              ],
+              width: { size: 100, type: WidthType.PERCENTAGE }
+            }),
+            
+            // Spacing
+            new Paragraph({ text: '', spacing: { after: 300 } }),
+            
+            // Totals
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Subtotal: ', bold: true }),
+                new TextRun(`$${invoice.subtotal?.toFixed(2) || '0.00'}`)
+              ],
+              alignment: AlignmentType.RIGHT,
+              spacing: { after: 100 }
+            }),
+            ...(invoice.hst ? [new Paragraph({
+              children: [
+                new TextRun({ text: 'HST (13%): ', bold: true }),
+                new TextRun(`$${invoice.hst?.toFixed(2) || '0.00'}`)
+              ],
+              alignment: AlignmentType.RIGHT,
+              spacing: { after: 100 }
+            })] : []),
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Total: ', bold: true, size: 28 }),
+                new TextRun({ text: `$${invoice.total?.toFixed(2) || '0.00'}`, size: 28 })
+              ],
+              alignment: AlignmentType.RIGHT,
+              spacing: { after: 400 }
+            }),
+            
+            // Notes
+            ...(invoice.notes ? [
+              new Paragraph({
+                text: 'Notes:',
+                bold: true,
+                spacing: { after: 200 }
+              }),
+              new Paragraph({
+                text: invoice.notes,
+                spacing: { after: 200 }
+              })
+            ] : [])
+          ]
+        }]
+      })
+      
+      // Generate and save document
+      const blob = await Packer.toBlob(doc)
+      saveAs(blob, `${invoice.invoiceNumber}.docx`)
+    } catch (error) {
+      console.error('Error generating Word document:', error)
+      alert('Error generating Word document. Please try again.')
+    }
   }
 
   const stats = useMemo(() => {
@@ -369,6 +658,17 @@ const InvoiceManager = ({ invoices, onUpdateInvoice, onClose, settings }) => {
                             Word
                           </Button>
                         </div>
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteInvoice(invoice)}
+                          title="Delete Invoice"
+                          className="text-red-600 border-red-600 hover:bg-red-50 mt-2"
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          Delete
+                        </Button>
                       </div>
                     </div>
                   </CardContent>

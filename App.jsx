@@ -463,6 +463,12 @@ function App() {
     }
   }
 
+  const handleDeleteInvoice = (invoiceId) => {
+    setInvoices(prev => prev.filter(inv => inv.id !== invoiceId))
+    // Also remove any notifications related to this invoice
+    setNotifications(prev => prev.filter(n => n.invoiceId !== invoiceId))
+  }
+
   // Notification handlers
   const handleMarkNotificationAsRead = (notificationId) => {
     setNotifications(prev => prev.map(n => 
@@ -1055,6 +1061,7 @@ function App() {
           invoices={invoices}
           settings={settings}
           onUpdateInvoice={handleUpdateInvoice}
+          onDeleteInvoice={handleDeleteInvoice}
           onClose={() => setShowInvoiceManager(false)}
         />
       )}
