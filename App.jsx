@@ -1042,6 +1042,7 @@ function App() {
       {showInvoiceGenerator && (
         <InvoiceGenerator 
           timeEntries={timeEntries}
+          clients={clients}
           settings={settings}
           onClose={() => setShowInvoiceGenerator(false)}
           onSaveInvoice={handleSaveInvoice}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx'
 import { Input } from '@/components/ui/input.jsx'
@@ -16,10 +16,19 @@ import {
   MapPin,
   Phone,
   Mail,
-  Building
+  Building,
+  Filter,
+  X
 } from 'lucide-react'
 
-const InvoiceGenerator = ({ timeEntries, onClose, onSaveInvoice, settings }) => {
+const InvoiceGenerator = ({ timeEntries, clients = [], onClose, onSaveInvoice, settings }) => {
+  // Filtering states
+  const [selectedClient, setSelectedClient] = useState('')
+  const [selectedMatter, setSelectedMatter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [filteredEntries, setFilteredEntries] = useState([])
+
   const [invoiceData, setInvoiceData] = useState({
     invoiceNumber: `${settings?.invoicePrefix || 'INV'}-${Date.now()}`,
     clientName: '',
@@ -37,9 +46,81 @@ const InvoiceGenerator = ({ timeEntries, onClose, onSaveInvoice, settings }) => 
     interestRate: parseFloat(settings?.defaultInterestRate || 2.0)
   })
 
-  const [selectedEntries, setSelectedEntries] = useState(
-    timeEntries.map(entry => ({ ...entry, selected: true }))
-  )
+  const [selectedEntries, setSelectedEntries] = useState([])
+
+  // Initialize date range to current month
+  useEffect(() => {
+    const now = new Date()
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    
+    setStartDate(firstDay.toISOString().split('T')[0])
+    setEndDate(lastDay.toISOString().split('T')[0])
+  }, [])
+
+  // Filter time entries based on selected criteria
+  useEffect(() => {
+    let filtered = timeEntries
+
+    // Filter by client
+    if (selectedClient) {
+      filtered = filtered.filter(entry => entry.client === selectedClient)
+    }
+
+    // Filter by matter
+    if (selectedMatter) {
+      filtered = filtered.filter(entry => entry.matter === selectedMatter)
+    }
+
+    // Filter by date range
+    if (startDate && endDate) {
+      filtered = filtered.filter(entry => {
+        if (!entry.date) return false
+        // Parse date string (assumes format like "1/9/2025" or similar)
+        const entryDate = new Date(entry.date)
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999) // Include the entire end date
+        return entryDate >= start && entryDate <= end
+      })
+    }
+
+    setFilteredEntries(filtered)
+    
+    // Auto-select all filtered entries
+    setSelectedEntries(filtered.map(entry => ({ ...entry, selected: true })))
+
+    // Auto-populate client info if client is selected
+    if (selectedClient && clients.length > 0) {
+      const client = clients.find(c => c.name === selectedClient)
+      if (client) {
+        setInvoiceData(prev => ({
+          ...prev,
+          clientName: client.name,
+          clientEmail: client.email || '',
+          clientAddress: client.address || ''
+        }))
+      }
+    }
+  }, [selectedClient, selectedMatter, startDate, endDate, timeEntries, clients])
+
+  // Get unique clients from time entries
+  const getUniqueClients = () => {
+    const uniqueClients = [...new Set(timeEntries.map(entry => entry.client).filter(Boolean))]
+    return uniqueClients.sort()
+  }
+
+  // Get matters for selected client
+  const getClientMatters = () => {
+    if (!selectedClient) return []
+    const matters = [...new Set(
+      timeEntries
+        .filter(entry => entry.client === selectedClient)
+        .map(entry => entry.matter)
+        .filter(Boolean)
+    )]
+    return matters.sort()
+  }
 
   const toggleEntrySelection = (entryId) => {
     setSelectedEntries(prev => 
@@ -55,6 +136,7 @@ const InvoiceGenerator = ({ timeEntries, onClose, onSaveInvoice, settings }) => 
   const subtotal = selectedEntriesData.reduce((sum, entry) => sum + entry.billableAmount, 0)
   const hst = subtotal * 0.13 // 13% HST for Ontario
   const total = subtotal + hst
+  const totalHours = selectedEntriesData.reduce((sum, entry) => sum + entry.totalHours, 0)
 
   const generateInvoice = () => {
     const invoice = {
@@ -97,6 +179,108 @@ const InvoiceGenerator = ({ timeEntries, onClose, onSaveInvoice, settings }) => 
 
         <div className="p-6 space-y-6">
           
+          {/* Filters Section */}
+          <Card className="bg-blue-50 border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-blue-900">
+                <Filter className="w-5 h-5" />
+                <span>Filter Time Entries</span>
+              </CardTitle>
+              <CardDescription>Filter entries by client, matter, and date range</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="filterClient">Client</Label>
+                  <select
+                    id="filterClient"
+                    value={selectedClient}
+                    onChange={(e) => {
+                      setSelectedClient(e.target.value)
+                      setSelectedMatter('') // Reset matter when client changes
+                    }}
+                    className="w-full p-2 border border-slate-300 rounded-md bg-white"
+                  >
+                    <option value="">All Clients</option>
+                    {getUniqueClients().map(client => (
+                      <option key={client} value={client}>{client}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="filterMatter">Matter</Label>
+                  <select
+                    id="filterMatter"
+                    value={selectedMatter}
+                    onChange={(e) => setSelectedMatter(e.target.value)}
+                    disabled={!selectedClient}
+                    className="w-full p-2 border border-slate-300 rounded-md bg-white disabled:bg-slate-100"
+                  >
+                    <option value="">All Matters</option>
+                    {getClientMatters().map(matter => (
+                      <option key={matter} value={matter}>{matter}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="filterStartDate">Start Date</Label>
+                  <Input
+                    id="filterStartDate"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="filterEndDate">End Date</Label>
+                  <Input
+                    id="filterEndDate"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              {/* Filter summary */}
+              <div className="flex items-center justify-between pt-2 border-t border-blue-200">
+                <div className="flex items-center space-x-4 text-sm">
+                  <span className="text-slate-600">
+                    <strong>{filteredEntries.length}</strong> entries found
+                  </span>
+                  <span className="text-slate-600">
+                    <strong>{selectedEntriesData.length}</strong> selected
+                  </span>
+                  <span className="text-blue-600 font-semibold">
+                    {totalHours.toFixed(2)} hours
+                  </span>
+                </div>
+                {(selectedClient || selectedMatter || startDate || endDate) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedClient('')
+                      setSelectedMatter('')
+                      const now = new Date()
+                      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+                      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+                      setStartDate(firstDay.toISOString().split('T')[0])
+                      setEndDate(lastDay.toISOString().split('T')[0])
+                    }}
+                    className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Client Information */}
           <Card>
             <CardHeader>
