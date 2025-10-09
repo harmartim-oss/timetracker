@@ -22,9 +22,12 @@ import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { Document, Packer, Paragraph, TextRun, Table, TableCell, TableRow, WidthType, AlignmentType, BorderStyle } from 'docx'
 import { saveAs } from 'file-saver'
+import CoverLetterGenerator from './CoverLetterGenerator.jsx'
 
 const InvoiceManager = ({ invoices, onUpdateInvoice, onDeleteInvoice, onClose, settings }) => {
   const [selectedInvoice, setSelectedInvoice] = useState(null)
+  const [showCoverLetter, setShowCoverLetter] = useState(false)
+  const [coverLetterInvoice, setCoverLetterInvoice] = useState(null)
   const [filter, setFilter] = useState('all') // all, draft, sent, paid, overdue
 
   // Calculate days overdue and status
@@ -169,7 +172,7 @@ const InvoiceManager = ({ invoices, onUpdateInvoice, onDeleteInvoice, onClose, s
         entry.description || '-',
         `${entry.hours || 0}h ${entry.minutes || 0}m`,
         `$${entry.rate || 0}`,
-        `$${((entry.hours || 0) + (entry.minutes || 0) / 60) * (entry.rate || 0).toFixed(2)}`
+        `$${(((entry.hours || 0) + (entry.minutes || 0) / 60) * (entry.rate || 0)).toFixed(2)}`
       ]) || []
       
       doc.autoTable({
@@ -662,6 +665,20 @@ const InvoiceManager = ({ invoices, onUpdateInvoice, onDeleteInvoice, onClose, s
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => {
+                            setCoverLetterInvoice(invoice)
+                            setShowCoverLetter(true)
+                          }}
+                          title="Generate Cover Letter"
+                          className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                        >
+                          <FileText className="w-3 h-3 mr-1" />
+                          Cover Letter
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleDeleteInvoice(invoice)}
                           title="Delete Invoice"
                           className="text-red-600 border-red-600 hover:bg-red-50 mt-2"
@@ -678,6 +695,18 @@ const InvoiceManager = ({ invoices, onUpdateInvoice, onDeleteInvoice, onClose, s
           )}
         </div>
       </div>
+      
+      {/* Cover Letter Generator */}
+      {showCoverLetter && coverLetterInvoice && (
+        <CoverLetterGenerator
+          invoice={coverLetterInvoice}
+          settings={settings}
+          onClose={() => {
+            setShowCoverLetter(false)
+            setCoverLetterInvoice(null)
+          }}
+        />
+      )}
     </div>
   )
 }

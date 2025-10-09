@@ -10,6 +10,7 @@ import Login from './components/Login.jsx'
 import Signup from './components/Signup.jsx'
 import InvoiceGenerator from './components/InvoiceGenerator.jsx'
 import InvoiceManager from './components/InvoiceManager.jsx'
+import BillOfCostsGenerator from './components/BillOfCostsGenerator.jsx'
 import NotificationCenter from './components/NotificationCenter.jsx'
 import AIAssistant from './components/AIAssistant.jsx'
 import ClientManager from './components/ClientManager.jsx'
@@ -85,6 +86,7 @@ function App() {
   const [startTime, setStartTime] = useState(null)
   const [showInvoiceGenerator, setShowInvoiceGenerator] = useState(false)
   const [showInvoiceManager, setShowInvoiceManager] = useState(false)
+  const [showBillOfCosts, setShowBillOfCosts] = useState(false)
   const [showNotificationCenter, setShowNotificationCenter] = useState(false)
   const [showAIAssistant, setShowAIAssistant] = useState(false)
   const [showClientManager, setShowClientManager] = useState(false)
@@ -967,6 +969,15 @@ function App() {
                 <Button 
                   variant="outline" 
                   className="w-full justify-start"
+                  onClick={() => setShowBillOfCosts(true)}
+                  disabled={timeEntries.length === 0}
+                >
+                  <Scale className="w-4 h-4 mr-2" />
+                  Generate Bill of Costs
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
                   onClick={() => setShowClientManager(true)}
                 >
                   <User className="w-4 h-4 mr-2" />
@@ -1063,6 +1074,16 @@ function App() {
           onUpdateInvoice={handleUpdateInvoice}
           onDeleteInvoice={handleDeleteInvoice}
           onClose={() => setShowInvoiceManager(false)}
+        />
+      )}
+
+      {/* Bill of Costs Generator Modal */}
+      {showBillOfCosts && (
+        <BillOfCostsGenerator 
+          timeEntries={timeEntries}
+          clients={clients}
+          settings={settings}
+          onClose={() => setShowBillOfCosts(false)}
         />
       )}
 
