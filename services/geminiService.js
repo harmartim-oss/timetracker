@@ -134,8 +134,13 @@ export const performLegalResearch = async (query) => {
     - relevance: number from 70-100 indicating relevance
     - summary: 2-3 sentence summary of relevance to the query
     - citation: proper legal citation format (or "N/A" if not applicable)
+    - url: direct link to the resource on CanLII.org or other Canadian legal database (use actual URLs when possible)
+    - source: name of the legal database (e.g., "CanLII", "Justice Laws Website", "Ontario Courts")
     
     Focus on Canadian and Ontario law where applicable.
+    For statutes, use CanLII links like: https://www.canlii.org/en/on/laws/stat/
+    For cases, use CanLII links like: https://www.canlii.org/en/on/onca/
+    For federal statutes: https://laws-lois.justice.gc.ca/
     Return only valid JSON array, no markdown or extra text.`;
 
     const result = await model.generateContent(prompt);
@@ -144,15 +149,38 @@ export const performLegalResearch = async (query) => {
     
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const results = JSON.parse(jsonMatch[0]);
+      // Enhance results with proper URLs if missing
+      return results.map(result => enhanceResearchResult(result, query));
     }
     
-    return getFallbackResearch();
+    return getFallbackResearch(query);
   } catch (error) {
     console.error('Error performing legal research:', error);
-    return getFallbackResearch();
+    return getFallbackResearch(query);
   }
 };
+
+// Helper function to enhance research results with proper URLs
+function enhanceResearchResult(result, query) {
+  if (!result.url || result.url === 'N/A') {
+    // Generate appropriate URLs based on type
+    if (result.type === 'Statute') {
+      result.url = `https://www.canlii.org/en/#search/text=${encodeURIComponent(result.title)}&type=statute`;
+      result.source = 'CanLII';
+    } else if (result.type === 'Case Law') {
+      result.url = `https://www.canlii.org/en/#search/text=${encodeURIComponent(result.title)}`;
+      result.source = 'CanLII';
+    } else if (result.type === 'Regulation') {
+      result.url = `https://www.canlii.org/en/#search/text=${encodeURIComponent(result.title)}&type=regulation`;
+      result.source = 'CanLII';
+    } else {
+      result.url = `https://www.canlii.org/en/#search/text=${encodeURIComponent(query)}`;
+      result.source = 'CanLII';
+    }
+  }
+  return result;
+}
 
 // Generate billing prediction with AI insights
 export const generateBillingPrediction = async (timeEntries) => {
@@ -267,21 +295,34 @@ function getFallbackTasks() {
   ];
 }
 
-function getFallbackResearch() {
+function getFallbackResearch(query = '') {
   return [
     {
       title: 'Ontario Commercial Tenancies Act',
       type: 'Statute',
       relevance: 95,
       summary: 'Key provisions regarding commercial lease agreements and tenant rights in Ontario.',
-      citation: 'R.S.O. 1990, c. C.7'
+      citation: 'R.S.O. 1990, c. C.7',
+      url: 'https://www.canlii.org/en/on/laws/stat/rso-1990-c-c7/latest/',
+      source: 'CanLII'
     },
     {
-      title: 'Legal Research Principles',
+      title: 'Search CanLII for more results',
       type: 'Legal Principle',
       relevance: 80,
-      summary: 'AI-powered research is currently unavailable. Please try again or use traditional legal research methods.',
-      citation: 'N/A'
+      summary: 'AI-powered research is currently unavailable. Click to search CanLII directly for your query.',
+      citation: 'N/A',
+      url: `https://www.canlii.org/en/#search/text=${encodeURIComponent(query || 'legal research')}`,
+      source: 'CanLII'
+    },
+    {
+      title: 'Justice Laws Website',
+      type: 'Legal Principle',
+      relevance: 75,
+      summary: 'Browse federal statutes and regulations on the official Justice Laws Website of Canada.',
+      citation: 'N/A',
+      url: 'https://laws-lois.justice.gc.ca/eng/',
+      source: 'Justice Laws Website'
     }
   ];
 }
