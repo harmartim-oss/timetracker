@@ -451,7 +451,7 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
                   <div className="space-y-4">
                     <h4 className="font-semibold text-slate-900">Research Results</h4>
                     {legalResearch.map((result, idx) => (
-                      <Card key={idx} className="border-l-4 border-l-blue-500">
+                      <Card key={idx} className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow">
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-2">
                             <h5 className="font-semibold text-slate-900">{result.title}</h5>
@@ -463,7 +463,27 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
                             </div>
                           </div>
                           <p className="text-sm text-slate-600 mb-2">{result.summary}</p>
-                          <p className="text-xs text-slate-500 font-mono">{result.citation}</p>
+                          <div className="flex items-center justify-between mt-3">
+                            <p className="text-xs text-slate-500 font-mono">{result.citation}</p>
+                            {result.url && (
+                              <div className="flex items-center space-x-2">
+                                {result.source && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {result.source}
+                                  </Badge>
+                                )}
+                                <a
+                                  href={result.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                                >
+                                  <BookOpen className="w-3 h-3 mr-1" />
+                                  View on {result.source || 'CanLII'}
+                                </a>
+                              </div>
+                            )}
+                          </div>
                         </CardContent>
                       </Card>
                     ))}

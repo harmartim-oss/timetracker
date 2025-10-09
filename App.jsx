@@ -306,18 +306,40 @@ function App() {
     setIsTimerRunning(false)
   }
 
-  const stopTimer = () => {
+  const stopTimer = async () => {
     setIsTimerRunning(false)
     if (elapsedTime > 0) {
       const totalMinutes = Math.floor(elapsedTime / 60000)
       const hours = Math.floor(totalMinutes / 60)
       const minutes = totalMinutes % 60
       
+      // Update time fields
       setCurrentEntry(prev => ({
         ...prev,
         hours: hours,
         minutes: minutes
       }))
+      
+      // Auto-enhance description with AI if description exists
+      if (currentEntry.description.trim() && currentEntry.client && currentEntry.matter) {
+        try {
+          const enhanced = await geminiService.enhanceTaskDescription(
+            currentEntry.description,
+            currentEntry.client,
+            currentEntry.matter
+          )
+          if (enhanced && enhanced !== currentEntry.description) {
+            setCurrentEntry(prev => ({
+              ...prev,
+              hours: hours,
+              minutes: minutes,
+              description: enhanced
+            }))
+          }
+        } catch (error) {
+          console.error('Error enhancing description:', error)
+        }
+      }
     }
     setElapsedTime(0)
     setStartTime(null)
@@ -607,6 +629,76 @@ function App() {
                 <CardDescription>Track time in real-time for your current task</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 py-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <Label htmlFor="timer-client">Client</Label>
+                    {clients.length > 0 ? (
+                      <select
+                        id="timer-client"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md"
+                        value={currentEntry.client}
+                        onChange={(e) => setCurrentEntry(prev => ({ ...prev, client: e.target.value, matter: '' }))}
+                      >
+                        <option value="">Select a client</option>
+                        {clients.map(client => (
+                          <option key={client.id} value={client.name}>{client.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        id="timer-client"
+                        placeholder="Client name"
+                        value={currentEntry.client}
+                        onChange={(e) => setCurrentEntry(prev => ({ ...prev, client: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="timer-matter">Matter</Label>
+                    {clients.length > 0 && currentEntry.client ? (
+                      <select
+                        id="timer-matter"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md"
+                        value={currentEntry.matter}
+                        onChange={(e) => setCurrentEntry(prev => ({ ...prev, matter: e.target.value }))}
+                      >
+                        <option value="">Select a matter</option>
+                        {clients.find(c => c.name === currentEntry.client)?.matters?.map(matter => (
+                          <option key={matter.id} value={matter.name}>{matter.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        id="timer-matter"
+                        placeholder="Matter description"
+                        value={currentEntry.matter}
+                        onChange={(e) => setCurrentEntry(prev => ({ ...prev, matter: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                </div>
+                
+                <div className="mb-6">
+                  <Label htmlFor="timer-user">Billed By</Label>
+                  <Input
+                    id="timer-user"
+                    placeholder="User name"
+                    value={currentEntry.user}
+                    onChange={(e) => setCurrentEntry(prev => ({ ...prev, user: e.target.value }))}
+                  />
+                </div>
+
+                <div className="mb-6">
+                  <Label htmlFor="timer-description">Task Description</Label>
+                  <Textarea
+                    id="timer-description"
+                    placeholder="Describe the work being performed..."
+                    value={currentEntry.description}
+                    onChange={(e) => setCurrentEntry(prev => ({ ...prev, description: e.target.value }))}
+                    rows={2}
+                  />
+                </div>
+
                 <div className="text-center">
                   <div className={`text-6xl font-mono font-bold mb-6 ${
                     isTimerRunning ? 'text-blue-600' : 'text-slate-400'
