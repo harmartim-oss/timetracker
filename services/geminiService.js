@@ -121,27 +121,56 @@ export const parseNaturalLanguageEntry = async (text) => {
   }
 };
 
-// Perform legal research with AI
-export const performLegalResearch = async (query) => {
+// Perform legal research with AI and filtering capabilities
+export const performLegalResearch = async (query, filters = {}) => {
   try {
     if (!model) initializeGemini();
     
-    const prompt = `As a legal research assistant, provide relevant legal information for this query: "${query}"
+    // Build filter instructions
+    let filterInstructions = '';
+    if (filters.type) {
+      filterInstructions += `Focus specifically on: ${filters.type}.\n`;
+    }
+    if (filters.jurisdiction) {
+      filterInstructions += `Limit results to ${filters.jurisdiction} jurisdiction.\n`;
+    }
+    if (filters.yearFrom || filters.yearTo) {
+      const yearRange = filters.yearFrom && filters.yearTo 
+        ? `${filters.yearFrom}-${filters.yearTo}`
+        : filters.yearFrom 
+          ? `${filters.yearFrom} onwards`
+          : `up to ${filters.yearTo}`;
+      filterInstructions += `Include only materials from ${yearRange}.\n`;
+    }
     
-    Return results as a JSON array with 3-5 items, each containing:
-    - title: relevant statute, case, or legal concept name
-    - type: "Statute", "Case Law", "Legal Principle", or "Regulation"
-    - relevance: number from 70-100 indicating relevance
-    - summary: 2-3 sentence summary of relevance to the query
-    - citation: proper legal citation format (or "N/A" if not applicable)
-    - url: direct link to the resource on CanLII.org or other Canadian legal database (use actual URLs when possible)
-    - source: name of the legal database (e.g., "CanLII", "Justice Laws Website", "Ontario Courts")
+    const prompt = `As a Canadian legal research assistant with expertise in legal databases, provide comprehensive research results for this query: "${query}"
     
-    Focus on Canadian and Ontario law where applicable.
-    For statutes, use CanLII links like: https://www.canlii.org/en/on/laws/stat/
-    For cases, use CanLII links like: https://www.canlii.org/en/on/onca/
-    For federal statutes: https://laws-lois.justice.gc.ca/
-    Return only valid JSON array, no markdown or extra text.`;
+    ${filterInstructions}
+    
+    Return results as a JSON array with 5-8 items, each containing:
+    - title: exact name of the statute, case, regulation, or article
+    - type: one of "Statute", "Case Law", "Regulation", "Legal Article", or "Legal Principle"
+    - relevance: number from 70-100 indicating relevance to the query
+    - summary: 2-3 sentence summary explaining relevance and key points
+    - citation: proper legal citation in Canadian format (e.g., "R.S.O. 1990, c. C.7" or "2021 SCC 1")
+    - url: direct link to the full resource (use actual URLs for Canadian databases)
+    - source: database name - "CanLII", "Justice Laws Website", "Lexum", "Ontario Courts", or "Supreme Court of Canada"
+    - jurisdiction: "Federal", "Ontario", "Supreme Court", etc.
+    - year: year of enactment/decision (if applicable)
+    
+    Prioritize Canadian legal resources in this order:
+    1. CanLII (www.canlii.org) - primary free Canadian legal database
+    2. Justice Laws Website (laws-lois.justice.gc.ca) - federal statutes and regulations
+    3. Lexum (lexum.com) - Supreme Court and federal court decisions
+    4. Provincial court websites - Ontario Courts, BC Courts, etc.
+    5. Legal articles from Canadian law journals
+    
+    For statutes: https://www.canlii.org/en/on/laws/stat/ or https://laws-lois.justice.gc.ca/
+    For Ontario cases: https://www.canlii.org/en/on/onca/ or https://www.canlii.org/en/on/onsc/
+    For Supreme Court: https://www.canlii.org/en/ca/scc/ or https://scc-csc.lexum.com/
+    For regulations: https://www.canlii.org/en/on/laws/regu/
+    
+    Focus on Canadian and Ontario law. Return only valid JSON array, no markdown or extra text.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -150,7 +179,7 @@ export const performLegalResearch = async (query) => {
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const results = JSON.parse(jsonMatch[0]);
-      // Enhance results with proper URLs if missing
+      // Enhance results with proper URLs and metadata if missing
       return results.map(result => enhanceResearchResult(result, query));
     }
     
@@ -161,22 +190,55 @@ export const performLegalResearch = async (query) => {
   }
 };
 
-// Helper function to enhance research results with proper URLs
+// Filter research results by type
+export const filterResearchResults = (results, filterType) => {
+  if (!filterType || filterType === 'all') return results;
+  return results.filter(result => result.type === filterType);
+};
+
+// Helper function to enhance research results with proper URLs and metadata
 function enhanceResearchResult(result, query) {
+  // Ensure all required fields exist
+  if (!result.jurisdiction) {
+    result.jurisdiction = 'Federal/Provincial';
+  }
+  if (!result.year) {
+    result.year = new Date().getFullYear();
+  }
+  
   if (!result.url || result.url === 'N/A') {
-    // Generate appropriate URLs based on type
+    const encodedTitle = encodeURIComponent(result.title);
+    const encodedQuery = encodeURIComponent(query);
+    
+    // Generate appropriate URLs based on type and jurisdiction
     if (result.type === 'Statute') {
-      result.url = `https://www.canlii.org/en/#search/text=${encodeURIComponent(result.title)}&type=statute`;
-      result.source = 'CanLII';
+      if (result.jurisdiction === 'Federal') {
+        result.url = `https://laws-lois.justice.gc.ca/eng/`;
+        result.source = result.source || 'Justice Laws Website';
+      } else {
+        result.url = `https://www.canlii.org/en/#search/text=${encodedTitle}&type=statute`;
+        result.source = result.source || 'CanLII';
+      }
     } else if (result.type === 'Case Law') {
-      result.url = `https://www.canlii.org/en/#search/text=${encodeURIComponent(result.title)}`;
-      result.source = 'CanLII';
+      if (result.jurisdiction === 'Supreme Court' || result.source === 'Lexum') {
+        result.url = `https://scc-csc.lexum.com/scc-csc/en/d/s/${encodedQuery}`;
+        result.source = 'Lexum';
+      } else if (result.jurisdiction === 'Ontario') {
+        result.url = `https://www.canlii.org/en/on/#search/text=${encodedTitle}`;
+        result.source = result.source || 'CanLII';
+      } else {
+        result.url = `https://www.canlii.org/en/#search/text=${encodedTitle}`;
+        result.source = result.source || 'CanLII';
+      }
     } else if (result.type === 'Regulation') {
-      result.url = `https://www.canlii.org/en/#search/text=${encodeURIComponent(result.title)}&type=regulation`;
-      result.source = 'CanLII';
+      result.url = `https://www.canlii.org/en/#search/text=${encodedTitle}&type=regulation`;
+      result.source = result.source || 'CanLII';
+    } else if (result.type === 'Legal Article') {
+      result.url = `https://www.canlii.org/en/commentary/#search/text=${encodedQuery}`;
+      result.source = result.source || 'CanLII Connects';
     } else {
-      result.url = `https://www.canlii.org/en/#search/text=${encodeURIComponent(query)}`;
-      result.source = 'CanLII';
+      result.url = `https://www.canlii.org/en/#search/text=${encodedQuery}`;
+      result.source = result.source || 'CanLII';
     }
   }
   return result;
@@ -238,24 +300,40 @@ export const generateBillingPrediction = async (timeEntries) => {
   }
 };
 
-// Enhanced task description generation
+// Enhanced task description generation with professional wording
 export const enhanceTaskDescription = async (basicDescription, clientType, matterType) => {
   try {
     if (!model) initializeGemini();
     
-    const prompt = `Enhance this legal time entry description to be more professional and detailed:
+    const prompt = `As a legal billing expert, enhance this time entry description to be more professional, detailed, and billable-hour appropriate:
     
     Basic description: "${basicDescription}"
     Client type: ${clientType || 'general'}
     Matter type: ${matterType || 'general'}
     
-    Provide a professional, billable-hour appropriate description (50-150 characters).
-    Include relevant legal terminology while remaining clear.
-    Return only the enhanced description, no extra text.`;
+    Requirements:
+    - Use professional legal terminology
+    - Make it clear, concise, and detailed (60-150 characters)
+    - Focus on the legal work performed, not just the activity
+    - Use action verbs (reviewed, drafted, analyzed, researched, prepared, etc.)
+    - Include relevant legal context where appropriate
+    - Ensure it would be acceptable in a legal bill or time docket
+    
+    Examples:
+    Input: "reviewed contract"
+    Output: "Reviewed and analyzed commercial lease agreement; identified key liability provisions"
+    
+    Input: "client call"
+    Output: "Telephone conference with client regarding litigation strategy and case developments"
+    
+    Input: "research"
+    Output: "Legal research on contract interpretation principles and relevant case law"
+    
+    Return only the enhanced description, no extra text or quotes.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    return response.text().trim();
+    return response.text().trim().replace(/^["']|["']$/g, '');
   } catch (error) {
     console.error('Error enhancing task description:', error);
     return basicDescription;
@@ -296,33 +374,84 @@ function getFallbackTasks() {
 }
 
 function getFallbackResearch(query = '') {
+  const encodedQuery = encodeURIComponent(query || 'legal research');
   return [
     {
-      title: 'Ontario Commercial Tenancies Act',
-      type: 'Statute',
+      title: 'Search CanLII - Primary Canadian Legal Database',
+      type: 'Legal Principle',
       relevance: 95,
-      summary: 'Key provisions regarding commercial lease agreements and tenant rights in Ontario.',
-      citation: 'R.S.O. 1990, c. C.7',
-      url: 'https://www.canlii.org/en/on/laws/stat/rso-1990-c-c7/latest/',
-      source: 'CanLII'
-    },
-    {
-      title: 'Search CanLII for more results',
-      type: 'Legal Principle',
-      relevance: 80,
-      summary: 'AI-powered research is currently unavailable. Click to search CanLII directly for your query.',
+      summary: 'CanLII is Canada\'s most comprehensive free legal database with cases, statutes, and regulations from all Canadian jurisdictions. Search for case law, statutes, and legal commentary.',
       citation: 'N/A',
-      url: `https://www.canlii.org/en/#search/text=${encodeURIComponent(query || 'legal research')}`,
-      source: 'CanLII'
+      url: `https://www.canlii.org/en/#search/text=${encodedQuery}`,
+      source: 'CanLII',
+      jurisdiction: 'Federal/Provincial',
+      year: new Date().getFullYear()
     },
     {
-      title: 'Justice Laws Website',
-      type: 'Legal Principle',
-      relevance: 75,
-      summary: 'Browse federal statutes and regulations on the official Justice Laws Website of Canada.',
+      title: 'Search Lexum - Supreme Court Decisions',
+      type: 'Case Law',
+      relevance: 90,
+      summary: 'Lexum provides free access to Supreme Court of Canada and Federal Court decisions. Search for authoritative case law and legal principles from Canada\'s highest court.',
+      citation: 'N/A',
+      url: `https://scc-csc.lexum.com/scc-csc/en/d/s/${encodedQuery}`,
+      source: 'Lexum',
+      jurisdiction: 'Supreme Court',
+      year: new Date().getFullYear()
+    },
+    {
+      title: 'Justice Laws Website - Federal Legislation',
+      type: 'Statute',
+      relevance: 85,
+      summary: 'Official Government of Canada website for federal statutes and regulations. Access the full text of consolidated federal Acts and Regulations with amendments.',
       citation: 'N/A',
       url: 'https://laws-lois.justice.gc.ca/eng/',
-      source: 'Justice Laws Website'
+      source: 'Justice Laws Website',
+      jurisdiction: 'Federal',
+      year: new Date().getFullYear()
+    },
+    {
+      title: 'Ontario Courts - Court Decisions and Rules',
+      type: 'Case Law',
+      relevance: 80,
+      summary: 'Official Ontario Courts website with recent decisions, court rules, practice directions, and court forms. Essential resource for Ontario civil and criminal matters.',
+      citation: 'N/A',
+      url: 'https://www.ontariocourts.ca/decisions/',
+      source: 'Ontario Courts',
+      jurisdiction: 'Ontario',
+      year: new Date().getFullYear()
+    },
+    {
+      title: 'CanLII Connects - Legal Commentary',
+      type: 'Legal Article',
+      relevance: 75,
+      summary: 'Browse legal blogs, case comments, and scholarly articles that discuss and analyze Canadian cases and legal developments. Includes academic and practitioner commentary.',
+      citation: 'N/A',
+      url: `https://www.canlii.org/en/commentary/#search/text=${encodedQuery}`,
+      source: 'CanLII',
+      jurisdiction: 'Federal/Provincial',
+      year: new Date().getFullYear()
+    },
+    {
+      title: 'Supreme Court of Canada - Judgments',
+      type: 'Case Law',
+      relevance: 85,
+      summary: 'Official Supreme Court of Canada website providing access to all Supreme Court judgments, bulletins, and case summaries. The authoritative source for SCC decisions.',
+      citation: 'N/A',
+      url: 'https://www.scc-csc.ca/case-dossier/index-eng.aspx',
+      source: 'Supreme Court of Canada',
+      jurisdiction: 'Supreme Court',
+      year: new Date().getFullYear()
+    },
+    {
+      title: 'Canadian Legal Information Institute',
+      type: 'Legal Principle',
+      relevance: 70,
+      summary: 'Access legislation, case law, tribunal decisions, and legal commentary from all Canadian jurisdictions. Includes federal, provincial, and territorial materials.',
+      citation: 'N/A',
+      url: `https://www.canlii.org/en/#search/text=${encodedQuery}&type=all`,
+      source: 'CanLII',
+      jurisdiction: 'Federal/Provincial',
+      year: new Date().getFullYear()
     }
   ];
 }
