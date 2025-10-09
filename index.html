@@ -3,21 +3,64 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tim Harmar Legal - AI-Powered Practice Management</title>
+  <title>AI Legal Timekeeping</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      margin: 0;
-      padding: 0;
+    }
+    .mat-mdc-dialog-container .mdc-dialog__surface {
+      border-radius: 0.75rem !important;
     }
   </style>
+<script type="importmap">
+{
+  "imports": {
+    "rxjs": "https://aistudiocdn.com/rxjs@^7.8.2?conditions=es2015",
+    "rxjs/operators": "https://aistudiocdn.com/rxjs@^7.8.2/operators?conditions=es2015",
+    "rxjs/ajax": "https://aistudiocdn.com/rxjs@^7.8.2/ajax?conditions=es2015",
+    "rxjs/webSocket": "https://aistudiocdn.com/rxjs@^7.8.2/webSocket?conditions=es2015",
+    "rxjs/testing": "https://aistudiocdn.com/rxjs@^7.8.2/testing?conditions=es2015",
+    "rxjs/fetch": "https://aistudiocdn.com/rxjs@^7.8.2/fetch?conditions=es2015",
+    "@angular/compiler": "https://next.esm.sh/@angular/compiler@^20.3.2?external=rxjs",
+    "@angular/platform-browser": "https://next.esm.sh/@angular/platform-browser@^20.3.2?external=rxjs",
+    "@angular/core": "https://next.esm.sh/@angular/core@^20.3.2?external=rxjs",
+    "@google/genai": "https://next.esm.sh/@google/genai@^1.21.0?external=rxjs",
+    "@angular/common": "https://next.esm.sh/@angular/common@^20.3.2?external=rxjs",
+    "@angular/common/http": "https://next.esm.sh/@angular/common@^20.3.2/http?external=rxjs",
+    "@angular/forms": "https://next.esm.sh/@angular/forms@^20.3.2?external=rxjs",
+    "@angular/cdk": "https://next.esm.sh/@angular/cdk@^18.1.1",
+    "@angular/cdk/a11y": "https://next.esm.sh/@angular/cdk@^18.1.1/a11y",
+    "@angular/cdk/bidi": "https://next.esm.sh/@angular/cdk@^18.1.1/bidi",
+    "@angular/cdk/coercion": "https://next.esm.sh/@angular/cdk@^18.1.1/coercion",
+    "@angular/cdk/dialog": "https://next.esm.sh/@angular/cdk@^18.1.1/dialog",
+    "@angular/cdk/keycodes": "https://next.esm.sh/@angular/cdk@^18.1.1/keycodes",
+    "@angular/cdk/overlay": "https://next.esm.sh/@angular/cdk@^18.1.1/overlay",
+    "@angular/cdk/platform": "https://next.esm.sh/@angular/cdk@^18.1.1/platform",
+    "@angular/cdk/portal": "https://next.esm.sh/@angular/cdk@^18.1.1/portal",
+    "@angular/cdk/scrolling": "https://next.esm.sh/@angular/cdk@^18.1.1/scrolling",
+    "@angular/material/dialog": "https://next.esm.sh/@angular/material@^18.1.1/dialog?external=@angular/core,@angular/common,@angular/platform-browser,@angular/cdk",
+    "@angular/material/button": "https://next.esm.sh/@angular/material@^18.1.1/button?external=@angular/core,@angular/common,@angular/platform-browser",
+    "@angular/material/card": "https://next.esm.sh/@angular/material@^18.1.1/card?external=@angular/core,@angular/common,@angular/platform-browser",
+    "@angular/material/form-field": "https://next.esm.sh/@angular/material@^18.1.1/form-field?external=@angular/core,@angular/common,@angular/platform-browser",
+    "@angular/material/input": "https://next.esm.sh/@angular/material@^18.1.1/input?external=@angular/core,@angular/common,@angular/platform-browser,@angular/forms",
+    "@angular/material/icon": "https://next.esm.sh/@angular/material@^18.1.1/icon?external=@angular/core,@angular/common,@angular/platform-browser",
+    "@angular/material/list": "https://next.esm.sh/@angular/material@^18.1.1/list?external=@angular/core,@angular/common,@angular/platform-browser",
+    "@angular/material/divider": "https://next.esm.sh/@angular/material@^18.1.1/divider?external=@angular/core,@angular/common,@angular/platform-browser",
+    "@angular/animations/browser": "https://next.esm.sh/@angular/animations@^20.3.2/browser?external=@angular/core",
+    "@angular/platform-browser/animations": "https://next.esm.sh/@angular/platform-browser@^20.3.2/animations?external=@angular/core,@angular/animations/browser"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
 </head>
-<body>
-  <div id="root"></div>
-  <script type="module" src="/main.jsx"></script>
+<body class="bg-gray-50 text-gray-800">
+  <app-root></app-root>
 </body>
 </html>
