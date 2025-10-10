@@ -31,6 +31,13 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
   const [legalResearch, setLegalResearch] = useState([])
   const [nlResult, setNlResult] = useState(null)
   const [apiStatus, setApiStatus] = useState('initializing')
+  const [researchFilters, setResearchFilters] = useState({
+    type: 'all',
+    jurisdiction: 'all',
+    yearFrom: '',
+    yearTo: ''
+  })
+  const [activeFilter, setActiveFilter] = useState('all')
 
   useEffect(() => {
     const initialized = geminiService.initializeGemini()
@@ -63,19 +70,29 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
     }
   }
 
-  // Legal research using real Gemini API
+  // Legal research using real Gemini API with filters
   const performLegalResearch = async () => {
     if (!query.trim()) return
     
     setIsProcessing(true)
     try {
-      const results = await geminiService.performLegalResearch(query)
+      const filters = researchFilters.type !== 'all' || researchFilters.jurisdiction !== 'all' 
+        ? researchFilters 
+        : {};
+      const results = await geminiService.performLegalResearch(query, filters)
       setLegalResearch(results)
+      setActiveFilter('all')
     } catch (error) {
       console.error('Error performing research:', error)
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  // Filter displayed results
+  const getFilteredResults = () => {
+    if (activeFilter === 'all') return legalResearch;
+    return geminiService.filterResearchResults(legalResearch, activeFilter);
   }
 
   // Natural language time entry parsing
@@ -418,14 +435,19 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
               <div className="space-y-6">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 mb-2">AI Legal Research Assistant</h3>
-                  <p className="text-slate-600 mb-4">Search legal databases with AI-powered relevance ranking</p>
+                  <p className="text-slate-600 mb-4">Search Canadian legal databases with AI-powered relevance ranking</p>
                   
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-2 mb-4">
                     <Input
-                      placeholder="Enter your legal research query..."
+                      placeholder="Enter your legal research query (e.g., 'employment termination Ontario', 'commercial lease breach')"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       className="flex-1"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !isProcessing && query.trim()) {
+                          performLegalResearch()
+                        }
+                      }}
                     />
                     <Button 
                       onClick={performLegalResearch}
@@ -445,25 +467,151 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
                       )}
                     </Button>
                   </div>
+
+                  {/* Advanced Filters */}
+                  <Card className="border-blue-100 bg-blue-50/50">
+                    <CardContent className="pt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <Label className="text-xs text-slate-600 mb-1">Filter by Type</Label>
+                          <select
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white"
+                            value={researchFilters.type}
+                            onChange={(e) => setResearchFilters(prev => ({ ...prev, type: e.target.value }))}
+                          >
+                            <option value="all">All Types</option>
+                            <option value="Statute">Statutes</option>
+                            <option value="Case Law">Case Law</option>
+                            <option value="Regulation">Regulations</option>
+                            <option value="Legal Article">Legal Articles</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-slate-600 mb-1">Jurisdiction</Label>
+                          <select
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white"
+                            value={researchFilters.jurisdiction}
+                            onChange={(e) => setResearchFilters(prev => ({ ...prev, jurisdiction: e.target.value }))}
+                          >
+                            <option value="all">All Jurisdictions</option>
+                            <option value="Federal">Federal</option>
+                            <option value="Ontario">Ontario</option>
+                            <option value="Supreme Court">Supreme Court</option>
+                          </select>
+                        </div>
+                        <div className="flex space-x-2">
+                          <div className="flex-1">
+                            <Label className="text-xs text-slate-600 mb-1">Year From</Label>
+                            <Input
+                              type="number"
+                              placeholder="2010"
+                              value={researchFilters.yearFrom}
+                              onChange={(e) => setResearchFilters(prev => ({ ...prev, yearFrom: e.target.value }))}
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <Label className="text-xs text-slate-600 mb-1">Year To</Label>
+                            <Input
+                              type="number"
+                              placeholder="2024"
+                              value={researchFilters.yearTo}
+                              onChange={(e) => setResearchFilters(prev => ({ ...prev, yearTo: e.target.value }))}
+                              className="text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Quick Access to Legal Databases */}
+                  <div className="mt-4">
+                    <p className="text-xs text-slate-600 mb-2">Quick Access to Canadian Legal Databases:</p>
+                    <div className="flex flex-wrap gap-2">
+                      <a href="https://www.canlii.org" target="_blank" rel="noopener noreferrer" 
+                         className="text-xs px-3 py-1 bg-white border border-blue-200 rounded-full hover:bg-blue-50 transition-colors">
+                        CanLII
+                      </a>
+                      <a href="https://scc-csc.lexum.com" target="_blank" rel="noopener noreferrer"
+                         className="text-xs px-3 py-1 bg-white border border-blue-200 rounded-full hover:bg-blue-50 transition-colors">
+                        Lexum (SCC)
+                      </a>
+                      <a href="https://laws-lois.justice.gc.ca" target="_blank" rel="noopener noreferrer"
+                         className="text-xs px-3 py-1 bg-white border border-blue-200 rounded-full hover:bg-blue-50 transition-colors">
+                        Justice Laws
+                      </a>
+                      <a href="https://www.ontariocourts.ca" target="_blank" rel="noopener noreferrer"
+                         className="text-xs px-3 py-1 bg-white border border-blue-200 rounded-full hover:bg-blue-50 transition-colors">
+                        Ontario Courts
+                      </a>
+                    </div>
+                  </div>
                 </div>
 
                 {legalResearch.length > 0 && (
                   <div className="space-y-4">
-                    <h4 className="font-semibold text-slate-900">Research Results</h4>
-                    {legalResearch.map((result, idx) => (
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-semibold text-slate-900">
+                        Research Results ({getFilteredResults().length} {getFilteredResults().length === 1 ? 'result' : 'results'})
+                      </h4>
+                      {/* Quick filter buttons */}
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          variant={activeFilter === 'all' ? 'default' : 'outline'}
+                          onClick={() => setActiveFilter('all')}
+                          className="text-xs"
+                        >
+                          All
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeFilter === 'Statute' ? 'default' : 'outline'}
+                          onClick={() => setActiveFilter('Statute')}
+                          className="text-xs"
+                        >
+                          Statutes
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeFilter === 'Case Law' ? 'default' : 'outline'}
+                          onClick={() => setActiveFilter('Case Law')}
+                          className="text-xs"
+                        >
+                          Cases
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeFilter === 'Regulation' ? 'default' : 'outline'}
+                          onClick={() => setActiveFilter('Regulation')}
+                          className="text-xs"
+                        >
+                          Regulations
+                        </Button>
+                      </div>
+                    </div>
+                    {getFilteredResults().map((result, idx) => (
                       <Card key={idx} className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow">
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-2">
-                            <h5 className="font-semibold text-slate-900">{result.title}</h5>
-                            <div className="flex items-center space-x-2">
+                            <div className="flex-1">
+                              <h5 className="font-semibold text-slate-900 mb-1">{result.title}</h5>
+                              {result.jurisdiction && (
+                                <p className="text-xs text-slate-500">
+                                  {result.jurisdiction} {result.year && `• ${result.year}`}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 ml-4">
                               <Badge variant="outline">{result.type}</Badge>
                               <Badge className="bg-blue-100 text-blue-800">
                                 {result.relevance}% relevant
                               </Badge>
                             </div>
                           </div>
-                          <p className="text-sm text-slate-600 mb-2">{result.summary}</p>
-                          <div className="flex items-center justify-between mt-3">
+                          <p className="text-sm text-slate-600 mb-3">{result.summary}</p>
+                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
                             <p className="text-xs text-slate-500 font-mono">{result.citation}</p>
                             {result.url && (
                               <div className="flex items-center space-x-2">

@@ -97,57 +97,74 @@ export const extractTime = (text) => {
 }
 
 /**
- * Extract client name from text
+ * Extract client name from text with improved accuracy
  */
 export const extractClient = (text) => {
-  // Try "for" pattern
+  // Try "for" pattern first (highest confidence)
   let match = text.match(CLIENT_PATTERNS.for)
   if (match) {
-    return { client: match[1].trim(), confidence: 0.9 }
+    const client = match[1].trim()
+    // Clean up common trailing words
+    const cleaned = client.replace(/\s+(on|re|about|regarding)$/i, '').trim()
+    return { client: cleaned, confidence: 0.9 }
   }
 
   // Try "with" pattern
   match = text.match(CLIENT_PATTERNS.with)
   if (match) {
-    return { client: match[1].trim(), confidence: 0.85 }
+    const client = match[1].trim()
+    const cleaned = client.replace(/\s+(on|re|about|regarding)$/i, '').trim()
+    return { client: cleaned, confidence: 0.85 }
   }
 
-  // Try company pattern
+  // Try company pattern (Inc, LLC, Corp, etc.)
   match = text.match(CLIENT_PATTERNS.company)
   if (match) {
     return { client: match[1].trim(), confidence: 0.8 }
   }
 
-  // Try person name pattern
+  // Try person name pattern (First Last)
   match = text.match(CLIENT_PATTERNS.name)
   if (match) {
-    return { client: match[1].trim(), confidence: 0.6 }
+    const name = match[1].trim()
+    // Only accept if it's a reasonable length (2-50 chars)
+    if (name.length >= 2 && name.length <= 50) {
+      return { client: name, confidence: 0.6 }
+    }
   }
 
   return { client: '', confidence: 0.0 }
 }
 
 /**
- * Extract matter/task description from text
+ * Extract matter/task description from text with improved accuracy
  */
 export const extractMatter = (text) => {
-  // Try "re:" pattern
+  // Try "re:" pattern first (most explicit)
   let match = text.match(MATTER_PATTERNS.re)
   if (match) {
-    return { matter: match[1].trim(), confidence: 0.9 }
+    const matter = match[1].trim()
+    // Clean up matter description - remove trailing prepositions
+    const cleaned = matter.replace(/\s+(for|with)$/i, '').trim()
+    return { matter: cleaned, confidence: 0.9 }
   }
 
-  // Try gerund pattern (e.g., "drafting contract")
+  // Try gerund pattern (e.g., "drafting contract", "reviewing agreement")
   match = text.match(MATTER_PATTERNS.gerund)
   if (match) {
     const matter = `${match[1]} ${match[2]}`.trim()
-    return { matter, confidence: 0.85 }
+    // Capitalize first letter
+    const formatted = matter.charAt(0).toUpperCase() + matter.slice(1)
+    return { matter: formatted, confidence: 0.85 }
   }
 
-  // Try noun pattern
+  // Try noun pattern (e.g., "draft contract", "review agreement")
   match = text.match(MATTER_PATTERNS.noun)
   if (match) {
-    return { matter: match[1].trim(), confidence: 0.75 }
+    const matter = match[1].trim()
+    const cleaned = matter.replace(/\s+(for|with)$/i, '').trim()
+    const formatted = cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+    return { matter: formatted, confidence: 0.75 }
   }
 
   return { matter: '', confidence: 0.0 }
@@ -175,7 +192,7 @@ export const detectPracticeArea = (text) => {
 }
 
 /**
- * Extract entities from natural language time entry
+ * Extract entities from natural language time entry with improved accuracy
  * Returns: { time, client, matter, description, practiceArea, confidence }
  */
 export const parseTimeEntry = (text) => {
@@ -188,10 +205,26 @@ export const parseTimeEntry = (text) => {
   const matter = extractMatter(text)
   const practiceArea = detectPracticeArea(text)
 
-  // Generate a clean description by removing time indicators
+  // Generate a clean description by removing time indicators and common patterns
   let description = text
     .replace(TIME_PATTERNS.hours, '')
     .replace(TIME_PATTERNS.minutes, '')
+    .replace(TIME_PATTERNS.decimal, '')
+    .replace(/\blog\b/gi, '') // Remove "log" keyword
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  // If we have a matter description, use it as the description
+  if (matter.matter && matter.confidence >= 0.7) {
+    description = matter.matter
+  }
+
+  // Clean up description - remove client name and common words
+  if (client.client && description.toLowerCase().includes(client.client.toLowerCase())) {
+    description = description.replace(new RegExp(client.client, 'gi'), '').trim()
+  }
+  description = description
+    .replace(/\b(for|with|client|re:|regarding|about)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
 
@@ -200,26 +233,27 @@ export const parseTimeEntry = (text) => {
     description = description.charAt(0).toUpperCase() + description.slice(1)
   }
 
-  // Calculate overall confidence
+  // Calculate overall confidence with improved weighting
   const confidence = (
-    time.confidence * 0.4 +
-    client.confidence * 0.3 +
-    matter.confidence * 0.2 +
-    practiceArea.confidence * 0.1
+    time.confidence * 0.35 +
+    client.confidence * 0.35 +
+    matter.confidence * 0.20 +
+    practiceArea.confidence * 0.10
   )
 
   return {
     hours: time.hours,
     minutes: time.minutes,
     client: client.client,
-    matter: matter.matter || description,
+    matter: matter.matter || description || 'General matter',
     description: description || text,
     practiceArea: practiceArea.area,
     confidence: Math.round(confidence * 100),
     metadata: {
       timeConfidence: Math.round(time.confidence * 100),
       clientConfidence: Math.round(client.confidence * 100),
-      matterConfidence: Math.round(matter.confidence * 100)
+      matterConfidence: Math.round(matter.confidence * 100),
+      practiceAreaConfidence: Math.round(practiceArea.confidence * 100)
     }
   }
 }
