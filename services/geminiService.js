@@ -340,6 +340,140 @@ export const enhanceTaskDescription = async (basicDescription, clientType, matte
   }
 };
 
+// Generate AI-enhanced cover letter content
+export const generateCoverLetter = async (invoice, settings, recipientInfo) => {
+  try {
+    if (!model) initializeGemini();
+    
+    const prompt = `As a legal billing professional, generate a professional cover letter for this invoice:
+    
+    Invoice Details:
+    - Invoice Number: ${invoice?.invoiceNumber || 'INV-001'}
+    - Client: ${invoice?.clientName || recipientInfo?.clientName || 'Client'}
+    - Matter: ${invoice?.matter || 'Legal Services'}
+    - Total Amount: $${invoice?.total?.toFixed(2) || '0.00'}
+    - Date: ${new Date().toLocaleDateString()}
+    
+    Firm Details:
+    - Firm Name: ${settings?.firmName || 'Law Firm'}
+    - Address: ${settings?.firmAddress || ''}
+    - Phone: ${settings?.firmPhone || ''}
+    - Email: ${settings?.firmEmail || ''}
+    
+    Recipient:
+    - Name: ${recipientInfo?.name || invoice?.clientName || 'Client'}
+    - Address: ${recipientInfo?.address || ''}
+    
+    Generate a professional, courteous cover letter that:
+    - References the enclosed invoice
+    - Summarizes the services provided
+    - Mentions the total amount due and payment terms
+    - Expresses appreciation for their business
+    - Provides contact information for questions
+    - Maintains a professional yet warm tone
+    
+    Return as JSON with fields:
+    {
+      "subject": "Re: Invoice ${invoice?.invoiceNumber || 'INV-001'} - ${invoice?.matter || 'Legal Services'}",
+      "body": "Full letter body with proper paragraphs separated by \\n\\n"
+    }
+    
+    Return only valid JSON, no markdown or extra text.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    
+    // Fallback
+    return {
+      subject: `Re: Invoice ${invoice?.invoiceNumber || 'INV-001'} - ${invoice?.matter || 'Legal Services'}`,
+      body: `Dear ${recipientInfo?.name || invoice?.clientName || 'Client'},\n\nPlease find enclosed Invoice ${invoice?.invoiceNumber || 'INV-001'} for legal services rendered in connection with ${invoice?.matter || 'your matter'}.\n\nThe total amount due is $${invoice?.total?.toFixed(2) || '0.00'}. Payment is requested within the terms specified on the invoice.\n\nWe appreciate your business and trust that you found our services satisfactory. Should you have any questions regarding this invoice, please do not hesitate to contact us.\n\nThank you for choosing ${settings?.firmName || 'our firm'}.\n\nSincerely,\n\n${settings?.firmName || 'Law Firm'}`
+    };
+  } catch (error) {
+    console.error('Error generating cover letter:', error);
+    return {
+      subject: `Re: Invoice ${invoice?.invoiceNumber || 'INV-001'} - ${invoice?.matter || 'Legal Services'}`,
+      body: `Dear ${recipientInfo?.name || invoice?.clientName || 'Client'},\n\nPlease find enclosed Invoice ${invoice?.invoiceNumber || 'INV-001'} for legal services rendered.\n\nThe total amount due is $${invoice?.total?.toFixed(2) || '0.00'}.\n\nThank you for your business.\n\nSincerely,\n${settings?.firmName || 'Law Firm'}`
+    };
+  }
+};
+
+// Generate AI-enhanced bill of costs with proper legal formatting
+export const generateBillOfCostsContent = async (timeEntries, clientName, matter, courtFile) => {
+  try {
+    if (!model) initializeGemini();
+    
+    const totalFees = timeEntries.reduce((sum, entry) => sum + (entry.totalHours * entry.rate), 0);
+    const totalHours = timeEntries.reduce((sum, entry) => sum + entry.totalHours, 0);
+    
+    const prompt = `As a legal costs expert, analyze these time entries and generate professional descriptions for a Bill of Costs:
+    
+    Client: ${clientName}
+    Matter: ${matter}
+    Court File: ${courtFile || 'N/A'}
+    Total Hours: ${totalHours.toFixed(2)}
+    Total Fees: $${totalFees.toFixed(2)}
+    
+    Time Entries:
+    ${timeEntries.slice(0, 20).map(e => `- ${e.description} (${e.totalHours}h @ $${e.rate}/h)`).join('\n')}
+    
+    Generate:
+    1. A professional case description (2-3 sentences summarizing the matter)
+    2. Suggested disbursements categories that might apply to this type of matter
+    3. Professional wording suggestions for the key time entries (enhance 5 most significant entries)
+    
+    Return as JSON:
+    {
+      "caseDescription": "Professional description of the matter",
+      "suggestedDisbursements": [
+        {"description": "Disbursement type", "amount": 0},
+        ...
+      ],
+      "enhancedEntries": [
+        {"original": "...", "enhanced": "...", "entryIndex": 0},
+        ...
+      ]
+    }
+    
+    Return only valid JSON, no markdown or extra text.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    
+    // Fallback
+    return {
+      caseDescription: `Legal services provided in connection with ${matter} for ${clientName}.`,
+      suggestedDisbursements: [
+        { description: 'Court filing fees', amount: 0 },
+        { description: 'Process server fees', amount: 0 },
+        { description: 'Photocopying and printing', amount: 0 }
+      ],
+      enhancedEntries: []
+    };
+  } catch (error) {
+    console.error('Error generating bill of costs content:', error);
+    return {
+      caseDescription: `Legal services provided in connection with ${matter} for ${clientName}.`,
+      suggestedDisbursements: [
+        { description: 'Court filing fees', amount: 0 },
+        { description: 'Photocopying', amount: 0 }
+      ],
+      enhancedEntries: []
+    };
+  }
+};
+
 // Fallback functions for when API fails
 function getFallbackTasks() {
   return [
@@ -476,3 +610,74 @@ function getFallbackPrediction(totalHours, avgRate) {
     ]
   };
 }
+
+// Bookmark management for legal research results
+const BOOKMARKS_STORAGE_KEY = 'legal_research_bookmarks';
+
+export const saveResearchBookmark = (result, client = '', matter = '', notes = '') => {
+  try {
+    const bookmarks = getResearchBookmarks();
+    const bookmark = {
+      id: `bookmark_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      ...result,
+      client,
+      matter,
+      notes,
+      savedAt: new Date().toISOString()
+    };
+    bookmarks.push(bookmark);
+    localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(bookmarks));
+    return bookmark;
+  } catch (error) {
+    console.error('Error saving bookmark:', error);
+    return null;
+  }
+};
+
+export const getResearchBookmarks = () => {
+  try {
+    const stored = localStorage.getItem(BOOKMARKS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading bookmarks:', error);
+    return [];
+  }
+};
+
+export const deleteResearchBookmark = (bookmarkId) => {
+  try {
+    const bookmarks = getResearchBookmarks();
+    const filtered = bookmarks.filter(b => b.id !== bookmarkId);
+    localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(filtered));
+    return true;
+  } catch (error) {
+    console.error('Error deleting bookmark:', error);
+    return false;
+  }
+};
+
+export const getBookmarksByClient = (clientName) => {
+  const bookmarks = getResearchBookmarks();
+  return bookmarks.filter(b => b.client === clientName);
+};
+
+export const getBookmarksByMatter = (matterName) => {
+  const bookmarks = getResearchBookmarks();
+  return bookmarks.filter(b => b.matter === matterName);
+};
+
+export const updateResearchBookmark = (bookmarkId, updates) => {
+  try {
+    const bookmarks = getResearchBookmarks();
+    const index = bookmarks.findIndex(b => b.id === bookmarkId);
+    if (index !== -1) {
+      bookmarks[index] = { ...bookmarks[index], ...updates };
+      localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(bookmarks));
+      return bookmarks[index];
+    }
+    return null;
+  } catch (error) {
+    console.error('Error updating bookmark:', error);
+    return null;
+  }
+};

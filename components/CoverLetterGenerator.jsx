@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.j
 import { Input } from '@/components/ui/input.jsx'
 import { Label } from '@/components/ui/label.jsx'
 import { Textarea } from '@/components/ui/textarea.jsx'
-import { X, Download, FileText } from 'lucide-react'
+import { X, Download, FileText, Sparkles, Zap } from 'lucide-react'
 import jsPDF from 'jspdf'
 import { Document, Packer, Paragraph, TextRun, AlignmentType } from 'docx'
 import { saveAs } from 'file-saver'
+import * as geminiService from '../services/geminiService.js'
 
 const CoverLetterGenerator = ({ invoice, onClose, settings }) => {
   const [letterData, setLetterData] = useState({
@@ -29,6 +30,29 @@ Yours truly,
 ${settings?.firmName || 'Tim Harmar Legal'}`,
     date: new Date().toISOString().split('T')[0]
   })
+  const [isEnhancing, setIsEnhancing] = useState(false)
+
+  const handleAIEnhance = async () => {
+    setIsEnhancing(true)
+    try {
+      const aiLetter = await geminiService.generateCoverLetter(
+        invoice,
+        settings,
+        { name: letterData.recipientName, address: letterData.recipientAddress }
+      )
+      if (aiLetter) {
+        setLetterData(prev => ({
+          ...prev,
+          subject: aiLetter.subject || prev.subject,
+          body: aiLetter.body || prev.body
+        }))
+      }
+    } catch (error) {
+      console.error('Error enhancing cover letter:', error)
+    } finally {
+      setIsEnhancing(false)
+    }
+  }
 
   const exportToPDF = () => {
     try {
@@ -235,7 +259,28 @@ ${settings?.firmName || 'Tim Harmar Legal'}`,
           </div>
 
           <div>
-            <Label htmlFor="body">Letter Body</Label>
+            <div className="flex justify-between items-center mb-2">
+              <Label htmlFor="body">Letter Body</Label>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAIEnhance}
+                disabled={isEnhancing}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700"
+              >
+                {isEnhancing ? (
+                  <>
+                    <Zap className="w-3 h-3 mr-1 animate-spin" />
+                    Enhancing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    AI Enhance
+                  </>
+                )}
+              </Button>
+            </div>
             <Textarea
               id="body"
               rows={15}
