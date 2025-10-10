@@ -17,11 +17,15 @@ import {
   Calculator,
   MessageSquare,
   Zap,
-  Mic
+  Mic,
+  Bookmark,
+  BookMarked,
+  Trash2,
+  X as CloseIcon
 } from 'lucide-react'
 import * as geminiService from '../services/geminiService.js'
 
-const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) => {
+const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling, clients = [] }) => {
   const [activeFeature, setActiveFeature] = useState('suggestions')
   const [query, setQuery] = useState('')
   const [nlQuery, setNlQuery] = useState('')
@@ -38,11 +42,59 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
     yearTo: ''
   })
   const [activeFilter, setActiveFilter] = useState('all')
+  const [bookmarks, setBookmarks] = useState([])
+  const [showBookmarkDialog, setShowBookmarkDialog] = useState(false)
+  const [bookmarkFormData, setBookmarkFormData] = useState({
+    result: null,
+    client: '',
+    matter: '',
+    notes: ''
+  })
 
   useEffect(() => {
     const initialized = geminiService.initializeGemini()
     setApiStatus(initialized ? 'ready' : 'error')
+    // Load bookmarks
+    setBookmarks(geminiService.getResearchBookmarks())
   }, [])
+
+  // Bookmark handling functions
+  const handleSaveBookmark = (result) => {
+    setBookmarkFormData({
+      result,
+      client: '',
+      matter: '',
+      notes: ''
+    })
+    setShowBookmarkDialog(true)
+  }
+
+  const confirmSaveBookmark = () => {
+    const bookmark = geminiService.saveResearchBookmark(
+      bookmarkFormData.result,
+      bookmarkFormData.client,
+      bookmarkFormData.matter,
+      bookmarkFormData.notes
+    )
+    if (bookmark) {
+      setBookmarks(geminiService.getResearchBookmarks())
+      setShowBookmarkDialog(false)
+      setBookmarkFormData({ result: null, client: '', matter: '', notes: '' })
+    }
+  }
+
+  const handleDeleteBookmark = (bookmarkId) => {
+    if (geminiService.deleteResearchBookmark(bookmarkId)) {
+      setBookmarks(geminiService.getResearchBookmarks())
+    }
+  }
+
+  const isBookmarked = (result) => {
+    return bookmarks.some(b => 
+      b.title === result.title && 
+      b.url === result.url
+    )
+  }
 
   // AI-powered task suggestions using real Gemini API
   const generateTaskSuggestions = async () => {
@@ -140,6 +192,12 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
       name: 'Legal Research',
       icon: BookOpen,
       description: 'AI-powered legal research assistant'
+    },
+    {
+      id: 'bookmarks',
+      name: 'Saved Research',
+      icon: BookMarked,
+      description: 'View and manage saved research results'
     },
     {
       id: 'automation',
@@ -620,6 +678,21 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
                                     {result.source}
                                   </Badge>
                                 )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleSaveBookmark(result)}
+                                  disabled={isBookmarked(result)}
+                                  className="text-xs"
+                                  title={isBookmarked(result) ? "Already bookmarked" : "Bookmark this result"}
+                                >
+                                  {isBookmarked(result) ? (
+                                    <BookMarked className="w-3 h-3 mr-1" />
+                                  ) : (
+                                    <Bookmark className="w-3 h-3 mr-1" />
+                                  )}
+                                  {isBookmarked(result) ? 'Saved' : 'Save'}
+                                </Button>
                                 <a
                                   href={result.url}
                                   target="_blank"
@@ -627,10 +700,108 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
                                   className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
                                 >
                                   <BookOpen className="w-3 h-3 mr-1" />
-                                  View on {result.source || 'CanLII'}
+                                  View
                                 </a>
                               </div>
                             )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Saved Research / Bookmarks */}
+            {activeFeature === 'bookmarks' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Saved Research Results</h3>
+                  <p className="text-slate-600 mb-4">Manage your bookmarked legal research organized by client and matter</p>
+                </div>
+
+                {bookmarks.length === 0 ? (
+                  <Card className="border-2 border-blue-100">
+                    <CardContent className="pt-6 text-center">
+                      <BookMarked className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                      <p className="text-slate-600 mb-2">No saved research results yet</p>
+                      <p className="text-sm text-slate-500">
+                        Use the Legal Research feature to find resources and bookmark them for later reference
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="text-sm text-slate-600 mb-2">
+                      {bookmarks.length} saved {bookmarks.length === 1 ? 'result' : 'results'}
+                    </div>
+                    {bookmarks.map((bookmark) => (
+                      <Card key={bookmark.id} className="border-l-4 border-l-green-500">
+                        <CardContent className="pt-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              <h5 className="font-semibold text-slate-900 mb-1">{bookmark.title}</h5>
+                              <div className="flex items-center space-x-2 text-xs text-slate-500 mb-2">
+                                {bookmark.jurisdiction && (
+                                  <span>{bookmark.jurisdiction}</span>
+                                )}
+                                {bookmark.year && (
+                                  <span>• {bookmark.year}</span>
+                                )}
+                                {bookmark.client && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Client: {bookmark.client}
+                                  </Badge>
+                                )}
+                                {bookmark.matter && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Matter: {bookmark.matter}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-400">
+                                Saved {new Date(bookmark.savedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2 ml-4">
+                              <Badge variant="outline">{bookmark.type}</Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeleteBookmark(bookmark.id)}
+                                className="text-red-600 hover:bg-red-50"
+                                title="Delete bookmark"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-sm text-slate-600 mb-2">{bookmark.summary}</p>
+                          {bookmark.notes && (
+                            <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm mb-2">
+                              <span className="font-medium">Notes: </span>
+                              {bookmark.notes}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                            <p className="text-xs text-slate-500 font-mono">{bookmark.citation}</p>
+                            <div className="flex items-center space-x-2">
+                              {bookmark.source && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {bookmark.source}
+                                </Badge>
+                              )}
+                              <a
+                                href={bookmark.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                              >
+                                <BookOpen className="w-3 h-3 mr-1" />
+                                View Resource
+                              </a>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -700,6 +871,122 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling }) 
             )}
           </div>
         </div>
+
+        {/* Bookmark Save Dialog */}
+        {showBookmarkDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-semibold text-slate-900">Save Research Result</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowBookmarkDialog(false)
+                    setBookmarkFormData({ result: null, client: '', matter: '', notes: '' })
+                  }}
+                >
+                  <CloseIcon className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">Resource</Label>
+                  <p className="text-sm text-slate-600 mt-1">{bookmarkFormData.result?.title}</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="bookmark-client" className="text-sm font-medium text-slate-700">
+                    Client (Optional)
+                  </Label>
+                  {clients && clients.length > 0 ? (
+                    <select
+                      id="bookmark-client"
+                      className="w-full px-3 py-2 mt-1 border border-slate-300 rounded-md text-sm"
+                      value={bookmarkFormData.client}
+                      onChange={(e) => setBookmarkFormData(prev => ({ ...prev, client: e.target.value, matter: '' }))}
+                    >
+                      <option value="">Select a client</option>
+                      {clients.map(client => (
+                        <option key={client.id} value={client.name}>{client.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      id="bookmark-client"
+                      placeholder="Client name"
+                      value={bookmarkFormData.client}
+                      onChange={(e) => setBookmarkFormData(prev => ({ ...prev, client: e.target.value }))}
+                      className="mt-1"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="bookmark-matter" className="text-sm font-medium text-slate-700">
+                    Matter (Optional)
+                  </Label>
+                  {bookmarkFormData.client && clients && clients.length > 0 && 
+                   clients.find(c => c.name === bookmarkFormData.client)?.matters?.length > 0 ? (
+                    <select
+                      id="bookmark-matter"
+                      className="w-full px-3 py-2 mt-1 border border-slate-300 rounded-md text-sm"
+                      value={bookmarkFormData.matter}
+                      onChange={(e) => setBookmarkFormData(prev => ({ ...prev, matter: e.target.value }))}
+                    >
+                      <option value="">Select a matter</option>
+                      {clients.find(c => c.name === bookmarkFormData.client)?.matters.map(matter => (
+                        <option key={matter.id} value={matter.name}>{matter.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      id="bookmark-matter"
+                      placeholder="Matter description"
+                      value={bookmarkFormData.matter}
+                      onChange={(e) => setBookmarkFormData(prev => ({ ...prev, matter: e.target.value }))}
+                      className="mt-1"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="bookmark-notes" className="text-sm font-medium text-slate-700">
+                    Notes (Optional)
+                  </Label>
+                  <Textarea
+                    id="bookmark-notes"
+                    placeholder="Add notes about why this resource is relevant..."
+                    value={bookmarkFormData.notes}
+                    onChange={(e) => setBookmarkFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    rows={3}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowBookmarkDialog(false)
+                      setBookmarkFormData({ result: null, client: '', matter: '', notes: '' })
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={confirmSaveBookmark}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <BookMarked className="w-4 h-4 mr-2" />
+                    Save Bookmark
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

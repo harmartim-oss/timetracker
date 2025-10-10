@@ -1193,6 +1193,7 @@ function App() {
       {showAIAssistant && (
         <AIAssistant 
           timeEntries={timeEntries}
+          clients={clients}
           onClose={() => setShowAIAssistant(false)}
           onSuggestTask={handleTaskSuggestion}
           onPredictBilling={handleBillingPrediction}

@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.j
 import { Input } from '@/components/ui/input.jsx'
 import { Label } from '@/components/ui/label.jsx'
 import { Textarea } from '@/components/ui/textarea.jsx'
-import { X, Download, Plus, Trash2, Scale } from 'lucide-react'
+import { X, Download, Plus, Trash2, Scale, Sparkles, Zap } from 'lucide-react'
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { Document, Packer, Paragraph, TextRun, Table, TableCell, TableRow, WidthType, AlignmentType, BorderStyle } from 'docx'
 import { saveAs } from 'file-saver'
+import * as geminiService from '../services/geminiService.js'
 
 const BillOfCostsGenerator = ({ timeEntries, clients = [], onClose, settings }) => {
   const [selectedClient, setSelectedClient] = useState('')
@@ -16,6 +17,7 @@ const BillOfCostsGenerator = ({ timeEntries, clients = [], onClose, settings }) 
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [filteredEntries, setFilteredEntries] = useState([])
+  const [isEnhancing, setIsEnhancing] = useState(false)
   
   const [billData, setBillData] = useState({
     courtFile: '',
@@ -100,6 +102,45 @@ const BillOfCostsGenerator = ({ timeEntries, clients = [], onClose, settings }) 
     const updated = [...disbursements]
     updated[index] = { ...updated[index], [field]: value }
     setDisbursements(updated)
+  }
+
+  const handleAIEnhance = async () => {
+    if (filteredEntries.length === 0) {
+      alert('Please select a client and matter with time entries first')
+      return
+    }
+    
+    setIsEnhancing(true)
+    try {
+      const aiContent = await geminiService.generateBillOfCostsContent(
+        filteredEntries,
+        billData.clientName || selectedClient,
+        billData.matter || selectedMatter,
+        billData.courtFile
+      )
+      
+      if (aiContent) {
+        // Update notes with case description
+        if (aiContent.caseDescription) {
+          setBillData(prev => ({
+            ...prev,
+            notes: aiContent.caseDescription + '\n\n' + prev.notes
+          }))
+        }
+        
+        // Add suggested disbursements if they have amounts
+        if (aiContent.suggestedDisbursements && aiContent.suggestedDisbursements.length > 0) {
+          const newDisbursements = aiContent.suggestedDisbursements.filter(d => d.amount > 0)
+          if (newDisbursements.length > 0) {
+            setDisbursements([...disbursements, ...newDisbursements])
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error enhancing bill of costs:', error)
+    } finally {
+      setIsEnhancing(false)
+    }
   }
 
   const calculateTotals = () => {
@@ -645,7 +686,28 @@ const BillOfCostsGenerator = ({ timeEntries, clients = [], onClose, settings }) 
           {/* Bill Details */}
           <Card>
             <CardHeader>
-              <CardTitle>Bill Details</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Bill Details</CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAIEnhance}
+                  disabled={isEnhancing || filteredEntries.length === 0}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700"
+                >
+                  {isEnhancing ? (
+                    <>
+                      <Zap className="w-3 h-3 mr-1 animate-spin" />
+                      Enhancing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      AI Enhance
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
