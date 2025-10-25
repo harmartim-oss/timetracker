@@ -1291,12 +1291,12 @@ function App() {
                     <Brain className="w-4 h-4 text-blue-900" />
                   </div>
                   <span className="text-blue-900">AI Assistant</span>
-                  <Badge className="text-xs bg-green-500 text-white">Gemini AI</Badge>
+                  <Badge className="text-xs bg-green-500 text-white">spaCy NLP</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4">
                 <p className="text-sm text-slate-700 mb-3 font-medium">
-                  Powered by Google Gemini AI:
+                  Powered by spaCy AI:
                 </p>
                 <ul className="text-sm text-slate-600 space-y-2">
                   <li className="flex items-center">

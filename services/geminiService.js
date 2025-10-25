@@ -1,49 +1,18 @@
-import { GoogleGenAI } from '@google/genai';
+// AI Service using spaCy NLP instead of Google Gemini
+// This service now uses local NLP processing and spaCy backend
 import * as nlpService from './nlpService.js';
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-
-let genAI = null;
-let model = null;
-
-// Initialize Gemini AI
+// Initialize NLP service (no external API needed)
 export const initializeGemini = () => {
-  try {
-    if (!API_KEY) {
-      console.error('Gemini API key not found in environment variables');
-      return false;
-    }
-    genAI = new GoogleGenAI(API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-    return true;
-  } catch (error) {
-    console.error('Error initializing Gemini:', error);
-    return false;
-  }
+  // spaCy NLP service doesn't require initialization
+  return true;
 };
 
 // Generate task suggestions based on practice area
+// Now uses fallback tasks (no AI needed for common tasks)
 export const generateTaskSuggestions = async (practiceArea = 'general') => {
   try {
-    if (!model) initializeGemini();
-    
-    const prompt = `As a legal practice management expert, suggest 10 common billable tasks for a lawyer specializing in ${practiceArea}. 
-    Format as a JSON array with categories. Each category should have a "category" name and "tasks" array.
-    Include categories like Contract Law, Corporate Law, Litigation, etc.
-    Each task should be a clear, professional description suitable for time tracking.
-    Return only valid JSON, no markdown or extra text.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Try to parse JSON from the response
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    
-    // Fallback if parsing fails
+    // Return fallback tasks which are good standard legal tasks
     return getFallbackTasks();
   } catch (error) {
     console.error('Error generating task suggestions:', error);
@@ -54,135 +23,31 @@ export const generateTaskSuggestions = async (practiceArea = 'general') => {
 // Generate natural language time entry from text
 // Enhanced with local NLP service for better accuracy
 export const parseNaturalLanguageEntry = async (text) => {
-  // First try local NLP service for immediate results
-  const localResult = nlpService.parseTimeEntry(text);
+  // Use local NLP service with spaCy backend support
+  const result = await nlpService.parseTimeEntry(text)
   
-  if (localResult && localResult.confidence > 70) {
-    // High confidence local result, return immediately
+  if (result && result.confidence > 50) {
     return {
-      client: localResult.client,
-      matter: localResult.matter,
-      description: localResult.description,
-      hours: localResult.hours,
-      minutes: localResult.minutes,
-      practiceArea: localResult.practiceArea,
-      source: 'local-nlp',
-      confidence: localResult.confidence
-    };
+      client: result.client,
+      matter: result.matter,
+      description: result.description,
+      hours: result.hours,
+      minutes: result.minutes,
+      practiceArea: result.practiceArea,
+      source: result.source || 'nlp-service',
+      confidence: result.confidence
+    }
   }
   
-  // For low confidence or complex cases, use Gemini AI
-  try {
-    if (!model) initializeGemini();
-    
-    const prompt = `Parse this natural language time entry into structured data: "${text}"
-    
-    Extract and return JSON with these fields:
-    - client: client name or company
-    - matter: matter/case description
-    - description: task description
-    - hours: numeric hours (decimal)
-    - minutes: remaining minutes
-    
-    Examples:
-    "log 2.5 hours for Smith Corp contract review" -> {"client": "Smith Corp", "matter": "Contract Review", "description": "Contract review", "hours": 2, "minutes": 30}
-    "3 hours client meeting with Johnson" -> {"client": "Johnson", "matter": "Client Meeting", "description": "Client meeting", "hours": 3, "minutes": 0}
-    
-    Return only valid JSON, no markdown or extra text.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const responseText = response.text();
-    
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const geminiResult = JSON.parse(jsonMatch[0]);
-      return {
-        ...geminiResult,
-        source: 'gemini-ai',
-        confidence: 95
-      };
-    }
-    
-    // Fallback to local result if Gemini fails
-    return localResult ? {
-      ...localResult,
-      source: 'local-nlp-fallback',
-      confidence: localResult.confidence
-    } : null;
-  } catch (error) {
-    console.error('Error parsing natural language entry:', error);
-    // Return local result as fallback
-    return localResult ? {
-      ...localResult,
-      source: 'local-nlp-fallback',
-      confidence: localResult.confidence
-    } : null;
-  }
-};
+  // Return null if confidence is too low
+  return null
+}
 
 // Perform legal research with AI and filtering capabilities
+// Now uses fallback research results (links to legal databases)
 export const performLegalResearch = async (query, filters = {}) => {
   try {
-    if (!model) initializeGemini();
-    
-    // Build filter instructions
-    let filterInstructions = '';
-    if (filters.type) {
-      filterInstructions += `Focus specifically on: ${filters.type}.\n`;
-    }
-    if (filters.jurisdiction) {
-      filterInstructions += `Limit results to ${filters.jurisdiction} jurisdiction.\n`;
-    }
-    if (filters.yearFrom || filters.yearTo) {
-      const yearRange = filters.yearFrom && filters.yearTo 
-        ? `${filters.yearFrom}-${filters.yearTo}`
-        : filters.yearFrom 
-          ? `${filters.yearFrom} onwards`
-          : `up to ${filters.yearTo}`;
-      filterInstructions += `Include only materials from ${yearRange}.\n`;
-    }
-    
-    const prompt = `As a Canadian legal research assistant with expertise in legal databases, provide comprehensive research results for this query: "${query}"
-    
-    ${filterInstructions}
-    
-    Return results as a JSON array with 5-8 items, each containing:
-    - title: exact name of the statute, case, regulation, or article
-    - type: one of "Statute", "Case Law", "Regulation", "Legal Article", or "Legal Principle"
-    - relevance: number from 70-100 indicating relevance to the query
-    - summary: 2-3 sentence summary explaining relevance and key points
-    - citation: proper legal citation in Canadian format (e.g., "R.S.O. 1990, c. C.7" or "2021 SCC 1")
-    - url: direct link to the full resource (use actual URLs for Canadian databases)
-    - source: database name - "CanLII", "Justice Laws Website", "Lexum", "Ontario Courts", or "Supreme Court of Canada"
-    - jurisdiction: "Federal", "Ontario", "Supreme Court", etc.
-    - year: year of enactment/decision (if applicable)
-    
-    Prioritize Canadian legal resources in this order:
-    1. CanLII (www.canlii.org) - primary free Canadian legal database
-    2. Justice Laws Website (laws-lois.justice.gc.ca) - federal statutes and regulations
-    3. Lexum (lexum.com) - Supreme Court and federal court decisions
-    4. Provincial court websites - Ontario Courts, BC Courts, etc.
-    5. Legal articles from Canadian law journals
-    
-    For statutes: https://www.canlii.org/en/on/laws/stat/ or https://laws-lois.justice.gc.ca/
-    For Ontario cases: https://www.canlii.org/en/on/onca/ or https://www.canlii.org/en/on/onsc/
-    For Supreme Court: https://www.canlii.org/en/ca/scc/ or https://scc-csc.lexum.com/
-    For regulations: https://www.canlii.org/en/on/laws/regu/
-    
-    Focus on Canadian and Ontario law. Return only valid JSON array, no markdown or extra text.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      const results = JSON.parse(jsonMatch[0]);
-      // Enhance results with proper URLs and metadata if missing
-      return results.map(result => enhanceResearchResult(result, query));
-    }
-    
+    // Return fallback research with proper legal database links
     return getFallbackResearch(query);
   } catch (error) {
     console.error('Error performing legal research:', error);
@@ -244,152 +109,40 @@ function enhanceResearchResult(result, query) {
   return result;
 }
 
-// Generate billing prediction with AI insights
+// Generate billing prediction with insights
+// Now uses simple calculation-based prediction (no AI needed)
 export const generateBillingPrediction = async (timeEntries) => {
   try {
-    if (!model) initializeGemini();
-    
     const totalHours = timeEntries.reduce((sum, entry) => sum + entry.totalHours, 0);
     const avgRate = timeEntries.length > 0 
       ? timeEntries.reduce((sum, entry) => sum + entry.rate, 0) / timeEntries.length 
       : 350;
     
-    const entriesSummary = timeEntries.slice(-10).map(e => 
-      `${e.client}: ${e.totalHours}h @ $${e.rate}/h`
-    ).join(', ');
-
-    const prompt = `As a legal practice management analyst, analyze these recent time entries and provide billing insights:
-    
-    Total hours logged: ${totalHours.toFixed(2)}
-    Average rate: $${avgRate.toFixed(2)}/hour
-    Recent entries: ${entriesSummary || 'No entries yet'}
-    
-    Provide analysis in JSON format:
-    {
-      "currentMonth": {
-        "hoursLogged": ${totalHours},
-        "projectedHours": [projected hours based on current pace],
-        "projectedRevenue": [projected revenue]
-      },
-      "trends": {
-        "efficiency": "Increasing/Stable/Decreasing",
-        "clientSatisfaction": "High/Medium/Low",
-        "profitability": "Above Average/Average/Below Average"
-      },
-      "recommendations": [array of 3-4 actionable recommendations for improving billing]
-    }
-    
-    Return only valid JSON, no markdown or extra text.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    
     return getFallbackPrediction(totalHours, avgRate);
   } catch (error) {
     console.error('Error generating billing prediction:', error);
-    return getFallbackPrediction(
-      timeEntries.reduce((sum, entry) => sum + entry.totalHours, 0),
-      timeEntries.length > 0 ? timeEntries.reduce((sum, entry) => sum + entry.rate, 0) / timeEntries.length : 350
-    );
+    return getFallbackPrediction(0, 350);
   }
 };
 
 // Enhanced task description generation with professional wording
+// Now using local NLP service instead of Google Gemini
 export const enhanceTaskDescription = async (basicDescription, clientType, matterType) => {
   try {
-    if (!model) initializeGemini();
-    
-    const prompt = `As a legal billing expert, enhance this time entry description to be more professional, detailed, and billable-hour appropriate:
-    
-    Basic description: "${basicDescription}"
-    Client type: ${clientType || 'general'}
-    Matter type: ${matterType || 'general'}
-    
-    Requirements:
-    - Use professional legal terminology
-    - Make it clear, concise, and detailed (60-150 characters)
-    - Focus on the legal work performed, not just the activity
-    - Use action verbs (reviewed, drafted, analyzed, researched, prepared, etc.)
-    - Include relevant legal context where appropriate
-    - Ensure it would be acceptable in a legal bill or time docket
-    
-    Examples:
-    Input: "reviewed contract"
-    Output: "Reviewed and analyzed commercial lease agreement; identified key liability provisions"
-    
-    Input: "client call"
-    Output: "Telephone conference with client regarding litigation strategy and case developments"
-    
-    Input: "research"
-    Output: "Legal research on contract interpretation principles and relevant case law"
-    
-    Return only the enhanced description, no extra text or quotes.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text().trim().replace(/^["']|["']$/g, '');
+    // Use local NLP service for description enhancement
+    return nlpService.enhanceTaskDescription(basicDescription, clientType, matterType)
   } catch (error) {
-    console.error('Error enhancing task description:', error);
-    return basicDescription;
+    console.error('Error enhancing task description:', error)
+    return basicDescription
   }
-};
+}
 
 // Generate AI-enhanced cover letter content
+// Generate cover letter content
+// Now uses template-based generation (no AI needed)
 export const generateCoverLetter = async (invoice, settings, recipientInfo) => {
   try {
-    if (!model) initializeGemini();
-    
-    const prompt = `As a legal billing professional, generate a professional cover letter for this invoice:
-    
-    Invoice Details:
-    - Invoice Number: ${invoice?.invoiceNumber || 'INV-001'}
-    - Client: ${invoice?.clientName || recipientInfo?.clientName || 'Client'}
-    - Matter: ${invoice?.matter || 'Legal Services'}
-    - Total Amount: $${invoice?.total?.toFixed(2) || '0.00'}
-    - Date: ${new Date().toLocaleDateString()}
-    
-    Firm Details:
-    - Firm Name: ${settings?.firmName || 'Law Firm'}
-    - Address: ${settings?.firmAddress || ''}
-    - Phone: ${settings?.firmPhone || ''}
-    - Email: ${settings?.firmEmail || ''}
-    
-    Recipient:
-    - Name: ${recipientInfo?.name || invoice?.clientName || 'Client'}
-    - Address: ${recipientInfo?.address || ''}
-    
-    Generate a professional, courteous cover letter that:
-    - References the enclosed invoice
-    - Summarizes the services provided
-    - Mentions the total amount due and payment terms
-    - Expresses appreciation for their business
-    - Provides contact information for questions
-    - Maintains a professional yet warm tone
-    
-    Return as JSON with fields:
-    {
-      "subject": "Re: Invoice ${invoice?.invoiceNumber || 'INV-001'} - ${invoice?.matter || 'Legal Services'}",
-      "body": "Full letter body with proper paragraphs separated by \\n\\n"
-    }
-    
-    Return only valid JSON, no markdown or extra text.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    
-    // Fallback
+    // Use fallback template which is professional and suitable
     return {
       subject: `Re: Invoice ${invoice?.invoiceNumber || 'INV-001'} - ${invoice?.matter || 'Legal Services'}`,
       body: `Dear ${recipientInfo?.name || invoice?.clientName || 'Client'},\n\nPlease find enclosed Invoice ${invoice?.invoiceNumber || 'INV-001'} for legal services rendered in connection with ${invoice?.matter || 'your matter'}.\n\nThe total amount due is $${invoice?.total?.toFixed(2) || '0.00'}. Payment is requested within the terms specified on the invoice.\n\nWe appreciate your business and trust that you found our services satisfactory. Should you have any questions regarding this invoice, please do not hesitate to contact us.\n\nThank you for choosing ${settings?.firmName || 'our firm'}.\n\nSincerely,\n\n${settings?.firmName || 'Law Firm'}`
@@ -403,55 +156,11 @@ export const generateCoverLetter = async (invoice, settings, recipientInfo) => {
   }
 };
 
-// Generate AI-enhanced bill of costs with proper legal formatting
+// Generate bill of costs content
+// Now uses template-based generation (no AI needed)
 export const generateBillOfCostsContent = async (timeEntries, clientName, matter, courtFile) => {
   try {
-    if (!model) initializeGemini();
-    
-    const totalFees = timeEntries.reduce((sum, entry) => sum + (entry.totalHours * entry.rate), 0);
-    const totalHours = timeEntries.reduce((sum, entry) => sum + entry.totalHours, 0);
-    
-    const prompt = `As a legal costs expert, analyze these time entries and generate professional descriptions for a Bill of Costs:
-    
-    Client: ${clientName}
-    Matter: ${matter}
-    Court File: ${courtFile || 'N/A'}
-    Total Hours: ${totalHours.toFixed(2)}
-    Total Fees: $${totalFees.toFixed(2)}
-    
-    Time Entries:
-    ${timeEntries.slice(0, 20).map(e => `- ${e.description} (${e.totalHours}h @ $${e.rate}/h)`).join('\n')}
-    
-    Generate:
-    1. A professional case description (2-3 sentences summarizing the matter)
-    2. Suggested disbursements categories that might apply to this type of matter
-    3. Professional wording suggestions for the key time entries (enhance 5 most significant entries)
-    
-    Return as JSON:
-    {
-      "caseDescription": "Professional description of the matter",
-      "suggestedDisbursements": [
-        {"description": "Disbursement type", "amount": 0},
-        ...
-      ],
-      "enhancedEntries": [
-        {"original": "...", "enhanced": "...", "entryIndex": 0},
-        ...
-      ]
-    }
-    
-    Return only valid JSON, no markdown or extra text.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    
-    // Fallback
+    // Use fallback which provides reasonable defaults
     return {
       caseDescription: `Legal services provided in connection with ${matter} for ${clientName}.`,
       suggestedDisbursements: [

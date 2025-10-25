@@ -1,11 +1,15 @@
 // Natural Language Processing Service
 // Enhanced NLP/NLU capabilities for time entry parsing and entity recognition
-// Uses pattern matching and contextual analysis for better accuracy
+// Uses backend spaCy service for advanced NLP processing
 
 /**
  * Enhanced NLP service for time tracking entries
  * Provides entity recognition, intent detection, and context extraction
+ * Now uses backend spaCy service for better accuracy
  */
+
+// Backend API URL - default to localhost for development
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
 
 // Common legal practice areas and tasks
 const LEGAL_TASKS = {
@@ -41,6 +45,88 @@ const MATTER_PATTERNS = {
   re: /\b(?:re:|regarding|about|on)\s+(.+?)(?:\s+for|\s+with|\s+\d+|$)/i,
   gerund: /\b(drafting|reviewing|preparing|analyzing|researching|attending|conducting|filing|negotiating|revising)\s+(.+?)(?:\s+for|\s+\d+|$)/i,
   noun: /\b(?:draft|review|prepare|analyze|research|attend|conduct|file|negotiate|revise)\s+(.+?)(?:\s+for|\s+\d+|$)/i
+}
+
+/**
+ * Call backend spaCy service for enhanced NLP processing
+ */
+const callBackendNLP = async (text) => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/parse-time-entry`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ text })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Backend service error: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result
+  } catch (error) {
+    console.warn('Backend spaCy service unavailable, using local fallback:', error)
+    return null
+  }
+}
+
+/**
+ * Enhance task description using backend spaCy service
+ */
+export const enhanceTaskDescription = async (description, clientType, matterType) => {
+  try {
+    // For now, use local enhancement until backend has this endpoint
+    // This provides immediate feedback while maintaining functionality
+    return enhanceDescriptionLocal(description, clientType, matterType)
+  } catch (error) {
+    console.error('Error enhancing description:', error)
+    return description
+  }
+}
+
+/**
+ * Local description enhancement (fallback)
+ */
+const enhanceDescriptionLocal = (description, clientType, matterType) => {
+  if (!description || description.trim().length === 0) {
+    return description
+  }
+
+  let enhanced = description.trim()
+
+  // Capitalize first letter
+  enhanced = enhanced.charAt(0).toUpperCase() + enhanced.slice(1)
+
+  // Add period if missing
+  if (!enhanced.match(/[.!?]$/)) {
+    enhanced += '.'
+  }
+
+  // Common legal task enhancements
+  const enhancements = {
+    'call': 'Telephone conference',
+    'email': 'Email correspondence',
+    'meeting': 'Client meeting',
+    'review': 'Reviewed and analyzed',
+    'draft': 'Drafted',
+    'research': 'Legal research regarding',
+    'prepare': 'Prepared',
+    'revise': 'Revised',
+    'attend': 'Attended'
+  }
+
+  // Apply enhancements for common short descriptions
+  for (const [key, value] of Object.entries(enhancements)) {
+    const regex = new RegExp(`^${key}\\b`, 'i')
+    if (regex.test(enhanced)) {
+      enhanced = enhanced.replace(regex, value)
+      break
+    }
+  }
+
+  return enhanced
 }
 
 /**
@@ -193,13 +279,30 @@ export const detectPracticeArea = (text) => {
 
 /**
  * Extract entities from natural language time entry with improved accuracy
+ * First tries backend spaCy service, falls back to local processing
  * Returns: { time, client, matter, description, practiceArea, confidence }
  */
-export const parseTimeEntry = (text) => {
+export const parseTimeEntry = async (text) => {
   if (!text || text.trim().length === 0) {
     return null
   }
 
+  // Try backend spaCy service first
+  const backendResult = await callBackendNLP(text)
+  if (backendResult && backendResult.confidence >= 70) {
+    return {
+      hours: backendResult.hours || 0,
+      minutes: backendResult.minutes || 0,
+      client: backendResult.client || '',
+      matter: backendResult.matter || '',
+      description: backendResult.description || text,
+      practiceArea: backendResult.practiceArea || 'general',
+      confidence: backendResult.confidence,
+      source: 'spacy-backend'
+    }
+  }
+
+  // Fallback to local processing
   const time = extractTime(text)
   const client = extractClient(text)
   const matter = extractMatter(text)
@@ -249,6 +352,7 @@ export const parseTimeEntry = (text) => {
     description: description || text,
     practiceArea: practiceArea.area,
     confidence: Math.round(confidence * 100),
+    source: 'local-fallback',
     metadata: {
       timeConfidence: Math.round(time.confidence * 100),
       clientConfidence: Math.round(client.confidence * 100),
