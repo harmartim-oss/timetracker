@@ -16,13 +16,15 @@ import AIAssistant from './components/AIAssistant.jsx'
 import ClientManager from './components/ClientManager.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Settings from './components/Settings.jsx'
+import AccountManager from './components/AccountManager.jsx'
+import Calendar from './components/Calendar.jsx'
 import { 
   Clock, 
   Play, 
   Pause, 
   Square, 
   Plus, 
-  Calendar, 
+  Calendar as CalendarIcon, 
   User, 
   FileText, 
   DollarSign,
@@ -38,16 +40,25 @@ import {
   LayoutDashboard,
   Bell,
   Sparkles,
-  LogOut
+  LogOut,
+  Building2,
+  ChevronDown
 } from 'lucide-react'
 import * as geminiService from './services/geminiService.js'
 import * as authService from './services/authService.js'
+import * as accountService from './services/accountService.js'
+import * as calendarService from './services/calendarService.js'
 import './App.css'
 
 function App() {
   // Authentication state
   const [currentUser, setCurrentUser] = useState(null)
   const [view, setView] = useState('landing') // 'landing', 'login', 'signup', 'app'
+  
+  // Account management state
+  const [currentAccount, setCurrentAccount] = useState(null)
+  const [userAccounts, setUserAccounts] = useState([])
+  const [pendingInvitations, setPendingInvitations] = useState([])
   
   const [activeTimer, setActiveTimer] = useState(null)
   const [timeEntries, setTimeEntries] = useState([])
@@ -92,6 +103,9 @@ function App() {
   const [showClientManager, setShowClientManager] = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showAccountManager, setShowAccountManager] = useState(false)
+  const [showCalendar, setShowCalendar] = useState(false)
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false)
   const [isEnhancingDescription, setIsEnhancingDescription] = useState(false)
   const [descriptionSuggestion, setDescriptionSuggestion] = useState(null)
 
@@ -101,10 +115,95 @@ function App() {
     if (user) {
       setCurrentUser(user)
       setView('app')
+      loadUserAccountsAndInvitations(user)
     } else {
       setView('landing')
     }
   }, [])
+
+  // Load user accounts and set active account
+  const loadUserAccountsAndInvitations = (user) => {
+    const accounts = accountService.getUserAccounts(user.id)
+    setUserAccounts(accounts)
+    
+    // Get pending invitations
+    const invitations = accountService.getUserInvitations(user.email)
+    setPendingInvitations(invitations)
+    
+    // Set active account
+    let activeAccountId = accountService.getActiveAccountId()
+    
+    // If no active account or active account is invalid, create/select first account
+    if (!activeAccountId || !accounts.find(a => a.id === activeAccountId)) {
+      if (accounts.length > 0) {
+        activeAccountId = accounts[0].id
+        accountService.setActiveAccount(activeAccountId)
+      } else {
+        // Create default account for new user
+        const result = accountService.createAccount(user.id, {
+          name: `${user.firmName || user.name}'s Account`,
+          description: 'Default account'
+        })
+        if (result.success) {
+          activeAccountId = result.account.id
+          setUserAccounts([result.account])
+        }
+      }
+    }
+    
+    if (activeAccountId) {
+      const account = accounts.find(a => a.id === activeAccountId) || 
+                     accountService.getAccountById(activeAccountId)
+      setCurrentAccount(account)
+    }
+  }
+
+  // Check for calendar event reminders
+  useEffect(() => {
+    if (!currentAccount) return
+    
+    const checkReminders = () => {
+      const reminders = calendarService.getEventsNeedingReminders()
+      
+      reminders.forEach(({ event, daysUntilEvent, reminderDays, reminderKey }) => {
+        // Check if we should notify for this account
+        if (event.accountId !== currentAccount.id) return
+        
+        // Create notification
+        const existingNotification = notifications.find(n => 
+          n.eventId === event.id && n.reminderKey === reminderKey
+        )
+        
+        if (!existingNotification) {
+          const notification = {
+            id: Date.now() + Math.random(),
+            type: 'reminder',
+            title: 'Event Reminder',
+            message: `"${event.title}" is in ${daysUntilEvent} day${daysUntilEvent > 1 ? 's' : ''}`,
+            date: new Date().toISOString(),
+            read: false,
+            eventId: event.id,
+            reminderKey,
+            details: {
+              eventTitle: event.title,
+              eventDate: event.date,
+              daysUntilEvent,
+              instructions: event.instructions
+            }
+          }
+          setNotifications(prev => [notification, ...prev])
+          
+          // Mark reminder as sent
+          calendarService.markReminderSent(event.id, reminderKey)
+        }
+      })
+    }
+    
+    // Check on mount and every hour
+    checkReminders()
+    const interval = setInterval(checkReminders, 60 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [currentAccount, notifications])
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -255,6 +354,7 @@ function App() {
         billingRate: user.billingRate || '350'
       }
     }))
+    loadUserAccountsAndInvitations(user)
     setView('app')
   }
 
@@ -272,12 +372,15 @@ function App() {
         billingRate: user.billingRate || '350'
       }
     }))
+    loadUserAccountsAndInvitations(user)
     setView('app')
   }
 
   const handleLogout = () => {
     authService.logout()
     setCurrentUser(null)
+    setCurrentAccount(null)
+    setUserAccounts([])
     setView('landing')
     // Reset app state
     setShowInvoiceGenerator(false)
@@ -287,6 +390,21 @@ function App() {
     setShowClientManager(false)
     setShowDashboard(false)
     setShowSettings(false)
+    setShowAccountManager(false)
+    setShowCalendar(false)
+  }
+
+  // Account management handlers
+  const handleAccountChange = (accountId) => {
+    accountService.setActiveAccount(accountId)
+    const account = accountService.getAccountById(accountId)
+    setCurrentAccount(account)
+    setShowAccountSwitcher(false)
+    setShowAccountManager(false)
+    // Reload accounts list
+    if (currentUser) {
+      loadUserAccountsAndInvitations(currentUser)
+    }
   }
 
   const formatTime = (milliseconds) => {
@@ -561,6 +679,65 @@ function App() {
                 </h1>
                 <p className="text-sm text-blue-100">AI-Powered Practice Management</p>
               </div>
+              {/* Account Switcher */}
+              {currentAccount && (
+                <div className="ml-4 relative">
+                  <button
+                    onClick={() => setShowAccountSwitcher(!showAccountSwitcher)}
+                    className="flex items-center space-x-2 px-3 py-1.5 bg-blue-700 hover:bg-blue-600 rounded-lg transition-colors"
+                  >
+                    <Building2 className="w-4 h-4 text-white" />
+                    <span className="text-sm text-white font-medium">{currentAccount.name}</span>
+                    <ChevronDown className="w-4 h-4 text-white" />
+                  </button>
+                  {showAccountSwitcher && (
+                    <div className="absolute top-full mt-2 left-0 bg-white rounded-lg shadow-xl border border-slate-200 min-w-[250px] z-50">
+                      <div className="p-2">
+                        <div className="text-xs text-slate-500 px-3 py-2 font-semibold">MY ACCOUNTS</div>
+                        {userAccounts.map(account => (
+                          <button
+                            key={account.id}
+                            onClick={() => handleAccountChange(account.id)}
+                            className={`w-full text-left px-3 py-2 rounded hover:bg-slate-100 ${
+                              currentAccount.id === account.id ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{account.name}</span>
+                              {currentAccount.id === account.id && (
+                                <Badge className="bg-green-500 text-xs">Active</Badge>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                        <hr className="my-2" />
+                        <button
+                          onClick={() => {
+                            setShowAccountSwitcher(false)
+                            setShowAccountManager(true)
+                          }}
+                          className="w-full text-left px-3 py-2 rounded hover:bg-slate-100 text-blue-600 font-medium"
+                        >
+                          <Building2 className="w-4 h-4 inline mr-2" />
+                          Manage Accounts
+                        </button>
+                        {pendingInvitations.length > 0 && (
+                          <button
+                            onClick={() => {
+                              setShowAccountSwitcher(false)
+                              setShowAccountManager(true)
+                            }}
+                            className="w-full text-left px-3 py-2 rounded hover:bg-slate-100 text-orange-600 font-medium"
+                          >
+                            <Bell className="w-4 h-4 inline mr-2" />
+                            {pendingInvitations.length} Pending Invitation{pendingInvitations.length > 1 ? 's' : ''}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <nav className="flex items-center space-x-2">
               <Button 
@@ -571,6 +748,15 @@ function App() {
               >
                 <LayoutDashboard className="w-4 h-4 mr-2" />
                 Dashboard
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-white hover:bg-blue-700 transition-colors"
+                onClick={() => setShowCalendar(true)}
+              >
+                <CalendarIcon className="w-4 h-4 mr-2" />
+                Calendar
               </Button>
               <Button 
                 variant="ghost" 
@@ -1225,6 +1411,24 @@ function App() {
           settings={settings}
           onUpdateSettings={setSettings}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* Account Manager Modal */}
+      {showAccountManager && currentUser && (
+        <AccountManager 
+          currentUser={currentUser}
+          onClose={() => setShowAccountManager(false)}
+          onAccountChange={handleAccountChange}
+        />
+      )}
+
+      {/* Calendar Modal */}
+      {showCalendar && currentUser && currentAccount && (
+        <Calendar 
+          currentUser={currentUser}
+          accountId={currentAccount.id}
+          onClose={() => setShowCalendar(false)}
         />
       )}
     </div>
