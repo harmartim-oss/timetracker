@@ -120,6 +120,10 @@ export const login = (email, password) => {
   const { passwordHash, ...userWithoutPassword } = user;
   try {
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userWithoutPassword));
+    
+    // Check for pending invitations and set up first account if needed
+    // This will be handled by the App component after successful login
+    
     return { success: true, user: userWithoutPassword };
   } catch (error) {
     console.error('Error setting current user:', error);
