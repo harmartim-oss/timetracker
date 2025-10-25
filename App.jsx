@@ -1401,7 +1401,13 @@ function App() {
           clients={clients}
           timeEntries={timeEntries}
           invoices={invoices}
+          currentUser={currentUser}
+          accountId={currentAccount?.id}
           onClose={() => setShowDashboard(false)}
+          onOpenCalendar={() => {
+            setShowDashboard(false)
+            setShowCalendar(true)
+          }}
         />
       )}
 
