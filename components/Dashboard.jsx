@@ -11,11 +11,15 @@ import {
   Clock,
   X,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react'
+import * as calendarService from '../services/calendarService.js'
 
-const Dashboard = ({ clients, timeEntries, invoices = [], onClose }) => {
+const Dashboard = ({ clients, timeEntries, invoices = [], onClose, currentUser, accountId, onOpenCalendar }) => {
   const [expandedClients, setExpandedClients] = useState({})
+  const [showMiniCalendar, setShowMiniCalendar] = useState(false)
+  const [miniCalendarDate, setMiniCalendarDate] = useState(new Date())
 
   const toggleClientExpansion = (clientId) => {
     setExpandedClients(prev => ({
@@ -70,6 +74,37 @@ const Dashboard = ({ clients, timeEntries, invoices = [], onClose }) => {
     return clients.find(c => c.name === clientName)
   }
 
+  // Mini calendar functions
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay()
+    return { daysInMonth, startingDayOfWeek, year, month }
+  }
+
+  const getEventsForDate = (date) => {
+    if (!accountId) return []
+    const events = calendarService.getAccountEvents(accountId)
+    const targetDate = new Date(date)
+    targetDate.setHours(0, 0, 0, 0)
+    return events.filter(event => {
+      const eventDate = new Date(event.date)
+      eventDate.setHours(0, 0, 0, 0)
+      return eventDate.getTime() === targetDate.getTime()
+    })
+  }
+
+  const handleMiniCalendarPrev = () => {
+    setMiniCalendarDate(new Date(miniCalendarDate.getFullYear(), miniCalendarDate.getMonth() - 1, 1))
+  }
+
+  const handleMiniCalendarNext = () => {
+    setMiniCalendarDate(new Date(miniCalendarDate.getFullYear(), miniCalendarDate.getMonth() + 1, 1))
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
@@ -88,6 +123,135 @@ const Dashboard = ({ clients, timeEntries, invoices = [], onClose }) => {
         </div>
 
         <div className="p-6 space-y-6">
+          
+          {/* Mini Calendar Widget */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg flex items-center">
+                  <Calendar className="w-5 h-5 mr-2 text-blue-600" />
+                  <span>Quick Calendar</span>
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMiniCalendar(!showMiniCalendar)}
+                  className="text-blue-600"
+                >
+                  {showMiniCalendar ? (
+                    <>
+                      <ChevronDown className="w-4 h-4 mr-1" />
+                      Collapse
+                    </>
+                  ) : (
+                    <>
+                      <ChevronRight className="w-4 h-4 mr-1" />
+                      Expand
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            {showMiniCalendar && (
+              <CardContent>
+                <div className="space-y-3">
+                  {/* Month Navigation */}
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-semibold text-slate-900">
+                      {miniCalendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                    </h3>
+                    <div className="flex space-x-1">
+                      <Button variant="ghost" size="sm" onClick={handleMiniCalendarPrev}>
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setMiniCalendarDate(new Date())}>
+                        Today
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={handleMiniCalendarNext}>
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div className="grid grid-cols-7 gap-1">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+                      <div key={idx} className="text-center text-xs font-semibold text-slate-600 py-1">
+                        {day}
+                      </div>
+                    ))}
+                    {(() => {
+                      const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(miniCalendarDate)
+                      const today = new Date()
+                      today.setHours(0, 0, 0, 0)
+                      
+                      return (
+                        <>
+                          {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+                            <div key={`empty-${i}`} className="aspect-square" />
+                          ))}
+                          {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const day = i + 1
+                            const date = new Date(year, month, day)
+                            date.setHours(0, 0, 0, 0)
+                            const dayEvents = getEventsForDate(date)
+                            const isToday = date.getTime() === today.getTime()
+                            
+                            return (
+                              <div
+                                key={day}
+                                className={`aspect-square flex flex-col items-center justify-center text-xs rounded ${
+                                  isToday ? 'bg-blue-500 text-white font-bold' : 'text-slate-700'
+                                } ${dayEvents.length > 0 ? 'border-2 border-blue-300' : ''}`}
+                              >
+                                {day}
+                                {dayEvents.length > 0 && (
+                                  <div className="w-1 h-1 rounded-full bg-blue-600 mt-0.5" />
+                                )}
+                              </div>
+                            )
+                          })}
+                        </>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Upcoming Events Preview */}
+                  {(() => {
+                    const upcomingEvents = accountId ? calendarService.getUpcomingEvents(accountId, 7) : []
+                    return upcomingEvents.length > 0 && (
+                      <div className="mt-3 pt-3 border-t">
+                        <p className="text-xs font-semibold text-slate-600 mb-2">Upcoming Events:</p>
+                        <div className="space-y-1">
+                          {upcomingEvents.slice(0, 3).map(event => (
+                            <div key={event.id} className="text-xs text-slate-700 flex justify-between">
+                              <span className="truncate">{event.title}</span>
+                              <span className="text-slate-500 ml-2">
+                                {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Full Calendar Link */}
+                  {onOpenCalendar && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={onOpenCalendar}
+                      className="w-full mt-2"
+                    >
+                      <Calendar className="w-3 h-3 mr-1" />
+                      Open Full Calendar
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            )}
+          </Card>
           
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

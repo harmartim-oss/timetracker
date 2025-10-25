@@ -52,8 +52,8 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling, cl
   })
 
   useEffect(() => {
-    const initialized = geminiService.initializeGemini()
-    setApiStatus(initialized ? 'ready' : 'error')
+    // spaCy NLP service is always available
+    setApiStatus('ready')
     // Load bookmarks
     setBookmarks(geminiService.getResearchBookmarks())
   }, [])
@@ -96,7 +96,7 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling, cl
     )
   }
 
-  // AI-powered task suggestions using real Gemini API
+  // AI-powered task suggestions using spaCy NLP service
   const generateTaskSuggestions = async () => {
     setIsProcessing(true)
     try {
@@ -109,7 +109,7 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling, cl
     }
   }
 
-  // Predictive billing analysis using real Gemini API
+  // Predictive billing analysis using spaCy NLP service
   const generateBillingPrediction = async () => {
     setIsProcessing(true)
     try {
@@ -122,7 +122,7 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling, cl
     }
   }
 
-  // Legal research using real Gemini API with filters
+  // Legal research using spaCy NLP service with filters
   const performLegalResearch = async () => {
     if (!query.trim()) return
     
@@ -220,7 +220,7 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling, cl
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-white mb-1">AI Legal Assistant</h2>
-                <p className="text-blue-100">Powered by Google Gemini AI • {apiStatus === 'ready' ? 'Connected' : 'Initializing...'}</p>
+                <p className="text-blue-100">Powered by spaCy NLP • {apiStatus === 'ready' ? 'Connected' : 'Initializing...'}</p>
               </div>
             </div>
             <Button variant="outline" onClick={onClose} className="bg-white hover:bg-blue-50">
@@ -369,7 +369,7 @@ const AIAssistant = ({ timeEntries, onClose, onSuggestTask, onPredictBilling, cl
                 <div className="flex justify-between items-center">
                   <div>
                     <h3 className="text-xl font-bold text-slate-900">AI Task Suggestions</h3>
-                    <p className="text-slate-600">Get intelligent task descriptions powered by Google Gemini AI</p>
+                    <p className="text-slate-600">Get intelligent task descriptions powered by spaCy AI</p>
                   </div>
                   <Button 
                     onClick={generateTaskSuggestions}
