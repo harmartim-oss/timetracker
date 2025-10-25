@@ -104,7 +104,7 @@ function App() {
   const [showDashboard, setShowDashboard] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showAccountManager, setShowAccountManager] = useState(false)
-  const [showCalendar, setShowCalendar] = useState(false)
+  const [showCalendar, setShowCalendar] = useState(false) // Fixed: Calendar should not auto-open on page load
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false)
   const [isEnhancingDescription, setIsEnhancingDescription] = useState(false)
   const [descriptionSuggestion, setDescriptionSuggestion] = useState(null)
