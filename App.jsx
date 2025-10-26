@@ -156,7 +156,8 @@ function App() {
   }
 
   // Check for calendar event reminders
-  // TODO: Implement calendar service
+  // TODO: Implement calendarService with getEventsNeedingReminders() and markReminderSent() methods
+  // This service should manage calendar events and send notifications for upcoming events
   // useEffect(() => {
   //   if (!currentAccount) return
   //   
