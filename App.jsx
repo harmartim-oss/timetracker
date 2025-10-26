@@ -17,14 +17,12 @@ import ClientManager from './components/ClientManager.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Settings from './components/Settings.jsx'
 import AccountManager from './components/AccountManager.jsx'
-import Calendar from './components/Calendar.jsx'
 import { 
   Clock, 
   Play, 
   Pause, 
   Square, 
   Plus, 
-  Calendar as CalendarIcon, 
   User, 
   FileText, 
   DollarSign,
@@ -47,7 +45,6 @@ import {
 import * as geminiService from './services/geminiService.js'
 import * as authService from './services/authService.js'
 import * as accountService from './services/accountService.js'
-import * as calendarService from './services/calendarService.js'
 import './App.css'
 
 function App() {
@@ -104,7 +101,6 @@ function App() {
   const [showDashboard, setShowDashboard] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showAccountManager, setShowAccountManager] = useState(false)
-  const [showCalendar, setShowCalendar] = useState(false)
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false)
   const [isEnhancingDescription, setIsEnhancingDescription] = useState(false)
   const [descriptionSuggestion, setDescriptionSuggestion] = useState(null)
@@ -391,7 +387,6 @@ function App() {
     setShowDashboard(false)
     setShowSettings(false)
     setShowAccountManager(false)
-    setShowCalendar(false)
   }
 
   // Account management handlers
@@ -748,15 +743,6 @@ function App() {
               >
                 <LayoutDashboard className="w-4 h-4 mr-2" />
                 Dashboard
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-white hover:bg-blue-700 transition-colors"
-                onClick={() => setShowCalendar(true)}
-              >
-                <CalendarIcon className="w-4 h-4 mr-2" />
-                Calendar
               </Button>
               <Button 
                 variant="ghost" 
@@ -1404,10 +1390,6 @@ function App() {
           currentUser={currentUser}
           accountId={currentAccount?.id}
           onClose={() => setShowDashboard(false)}
-          onOpenCalendar={() => {
-            setShowDashboard(false)
-            setShowCalendar(true)
-          }}
         />
       )}
 
@@ -1426,15 +1408,6 @@ function App() {
           currentUser={currentUser}
           onClose={() => setShowAccountManager(false)}
           onAccountChange={handleAccountChange}
-        />
-      )}
-
-      {/* Calendar Modal */}
-      {showCalendar && currentUser && currentAccount && (
-        <Calendar 
-          currentUser={currentUser}
-          accountId={currentAccount.id}
-          onClose={() => setShowCalendar(false)}
         />
       )}
     </div>
