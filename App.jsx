@@ -40,7 +40,8 @@ import {
   Sparkles,
   LogOut,
   Building2,
-  ChevronDown
+  ChevronDown,
+  Calendar
 } from 'lucide-react'
 import * as geminiService from './services/geminiService.js'
 import * as authService from './services/authService.js'
@@ -155,51 +156,52 @@ function App() {
   }
 
   // Check for calendar event reminders
-  useEffect(() => {
-    if (!currentAccount) return
-    
-    const checkReminders = () => {
-      const reminders = calendarService.getEventsNeedingReminders()
-      
-      reminders.forEach(({ event, daysUntilEvent, reminderDays, reminderKey }) => {
-        // Check if we should notify for this account
-        if (event.accountId !== currentAccount.id) return
-        
-        // Create notification
-        const existingNotification = notifications.find(n => 
-          n.eventId === event.id && n.reminderKey === reminderKey
-        )
-        
-        if (!existingNotification) {
-          const notification = {
-            id: Date.now() + Math.random(),
-            type: 'reminder',
-            title: 'Event Reminder',
-            message: `"${event.title}" is in ${daysUntilEvent} day${daysUntilEvent > 1 ? 's' : ''}`,
-            date: new Date().toISOString(),
-            read: false,
-            eventId: event.id,
-            reminderKey,
-            details: {
-              eventTitle: event.title,
-              eventDate: event.date,
-              daysUntilEvent,
-              instructions: event.instructions
-            }
-          }
-          setNotifications(prev => [notification, ...prev])
-          
-          // Mark reminder as sent
-          calendarService.markReminderSent(event.id, reminderKey)
-        }
-      })
-    }
-    
-    // Check on mount and every hour
-    checkReminders()
-    const interval = setInterval(checkReminders, 60 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [currentAccount, notifications])
+  // TODO: Implement calendar service
+  // useEffect(() => {
+  //   if (!currentAccount) return
+  //   
+  //   const checkReminders = () => {
+  //     const reminders = calendarService.getEventsNeedingReminders()
+  //     
+  //     reminders.forEach(({ event, daysUntilEvent, reminderDays, reminderKey }) => {
+  //       // Check if we should notify for this account
+  //       if (event.accountId !== currentAccount.id) return
+  //       
+  //       // Create notification
+  //       const existingNotification = notifications.find(n => 
+  //         n.eventId === event.id && n.reminderKey === reminderKey
+  //       )
+  //       
+  //       if (!existingNotification) {
+  //         const notification = {
+  //           id: Date.now() + Math.random(),
+  //           type: 'reminder',
+  //           title: 'Event Reminder',
+  //           message: `"${event.title}" is in ${daysUntilEvent} day${daysUntilEvent > 1 ? 's' : ''}`,
+  //           date: new Date().toISOString(),
+  //           read: false,
+  //           eventId: event.id,
+  //           reminderKey,
+  //           details: {
+  //             eventTitle: event.title,
+  //             eventDate: event.date,
+  //             daysUntilEvent,
+  //             instructions: event.instructions
+  //           }
+  //         }
+  //         setNotifications(prev => [notification, ...prev])
+  //         
+  //         // Mark reminder as sent
+  //         calendarService.markReminderSent(event.id, reminderKey)
+  //       }
+  //     })
+  //   }
+  //   
+  //   // Check on mount and every hour
+  //   checkReminders()
+  //   const interval = setInterval(checkReminders, 60 * 60 * 1000)
+  //   return () => clearInterval(interval)
+  // }, [currentAccount, notifications])
 
   // Load data from localStorage on mount
   useEffect(() => {
